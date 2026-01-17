@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+datathon_env/
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.flaskenv
+.fly/
+
+# Streamlit
+.streamlit/
+secrets.toml
+
+# IDE Settings
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Data (Sensitive / Large)
+champions_group_data.csv
+champions_group_data_desc.csv
+company_segmentation_results.csv
+
+# Competition Documents (Sensitive)
+sds_datathon_2026_problem_statement.txt
+
+# Logs
+*.log
+
+# Jupyter Notebook
+.ipynb_checkpoints

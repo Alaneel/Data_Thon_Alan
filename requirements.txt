@@ -1,0 +1,18 @@
+# SDS Datathon 2026 - Company Intelligence Dashboard
+# Python Dependencies
+
+# Core Data Science
+pandas==2.3.3
+numpy==2.3.5
+scikit-learn==1.8.0
+
+# Visualization
+matplotlib==3.10.8
+seaborn==0.13.2
+plotly==6.5.2
+
+# Dashboard
+streamlit==1.53.0
+
+# LLM Integration
+google-generativeai==0.8.6
