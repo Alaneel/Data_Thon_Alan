@@ -55,8 +55,11 @@ company_segmentation_results.csv
 # Competition Documents (Sensitive)
 sds_datathon_2026_problem_statement.txt
 
-# Logs
-*.log
-
-# Jupyter Notebook
-.ipynb_checkpoints
+# Derivatives / Analysis Output (Confidential)
+*.ipynb
+*.png
+*.webp
+*.jpg
+*.svg
+*.json
+html/
