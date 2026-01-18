@@ -6,26 +6,41 @@ An AI-powered company segmentation and intelligence dashboard for the Champions 
 
 This project analyzes B2B company data to provide actionable business intelligence through:
 
-- **K-Means Clustering**: Segments 8,559 companies into 4 distinct market clusters
-- **Anomaly Detection**: Identifies 423 potential data anomalies using Isolation Forest
+- **Multi-Dimensional Clustering**: Segments 8,559 companies into 4 distinct market clusters using K-Means
+- **B2B Lead Scoring**: Calculates 0-100 lead scores based on revenue potential, decision-making power, and data quality
+- **Industry Benchmarking**: Compares companies against their industry peers
+- **Anomaly Detection**: Identifies high-risk entities using Isolation Forest algorithm
+- **Risk Assessment**: Detects shell companies, data quality issues, and orphan subsidiaries
 - **LLM-Powered Insights**: Generates business personas, risk assessments, and competitive analysis using Google Gemini
-- **Interactive Dashboard**: Streamlit-based visualization for exploring insights
 
 ## 📊 Key Results
 
-| Metric              | Value      |
-| ------------------- | ---------- |
-| Total Companies     | 8,559      |
-| Clusters Identified | 4          |
-| Silhouette Score    | 0.4801     |
-| Anomalies Detected  | 423 (4.9%) |
+| Metric                     | Value  |
+| -------------------------- | ------ |
+| Total Companies            | 8,559  |
+| Clusters Identified        | 4      |
+| Silhouette Score           | 0.4801 |
+| Industry Sectors Analyzed  | 70+    |
+| Priority Leads (Score ≥70) | 1,200+ |
+| High-Risk Entities         | 400+   |
 
 ### Cluster Profiles
 
-- **Cluster 0**: Medium Subsidiaries - Service-focused entities with balanced revenue/employee ratios
-- **Cluster 1**: Medium High-Revenue Parents - Asset-light holding structures
-- **Cluster 2**: Small Branches - Compliance nodes with minimal operations
-- **Cluster 3**: Lean HoldCos - Zero-employee high-revenue parent entities
+| Cluster       | Profile                     | Characteristics                                                |
+| ------------- | --------------------------- | -------------------------------------------------------------- |
+| **Cluster 0** | Medium Subsidiaries         | Service-focused entities with balanced revenue/employee ratios |
+| **Cluster 1** | Medium High-Revenue Parents | Asset-light holding structures                                 |
+| **Cluster 2** | Small Branches              | Compliance nodes with minimal operations                       |
+| **Cluster 3** | Lean HoldCos                | Zero-employee high-revenue parent entities                     |
+
+### Lead Score Distribution
+
+| Tier        | Score Range | Description                                 |
+| ----------- | ----------- | ------------------------------------------- |
+| 🔥 Priority | 70-100      | High-value prospects for immediate outreach |
+| 🌡️ Hot      | 50-69       | Strong potential, worth nurturing           |
+| ☁️ Warm     | 30-49       | Moderate interest, requires qualification   |
+| ❄️ Cold     | 0-29        | Low priority, minimal engagement            |
 
 ## 🚀 Quick Start
 
@@ -33,19 +48,27 @@ This project analyzes B2B company data to provide actionable business intelligen
 
 ```bash
 cd /Users/alanwang/Desktop/Datathon
-python -m venv datathon_env
+python3 -m venv datathon_env
 source datathon_env/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Run the Dashboard
+### 2. Run Enhanced Analysis (Optional)
+
+If you need to regenerate analysis results:
+
+```bash
+python enhanced_analysis.py
+```
+
+### 3. Run the Dashboard
 
 ```bash
 export GEMINI_API_KEY='your-api-key'  # Required for AI features
 streamlit run app.py
 ```
 
-### 3. Open in Browser
+### 4. Open in Browser
 
 Navigate to http://localhost:8501
 
@@ -53,36 +76,93 @@ Navigate to http://localhost:8501
 
 ```
 Datathon/
-├── app.py                          # Streamlit dashboard
-├── llm_insights.py                 # LLM integration module
-├── company_intelligence_analysis.ipynb  # Full analysis notebook
-├── company_segmentation_results.csv     # Processed results
-├── champions_group_data.csv        # Raw dataset
-├── requirements.txt                # Python dependencies
-└── README.md                       # This file
+├── app.py                              # Streamlit dashboard (6 pages)
+├── enhanced_analysis.py                # Full analysis pipeline
+├── llm_insights.py                     # LLM integration module
+├── company_intelligence_analysis.ipynb # Jupyter notebook analysis
+├── company_segmentation_results.csv    # Processed results with scores
+├── champions_group_data.csv            # Raw dataset (8,559 companies)
+├── champions_group_data_desc.csv       # Data dictionary
+├── requirements.txt                    # Python dependencies
+├── COLLABORATION_GUIDE.md              # Team onboarding guide
+└── README.md                           # This file
 ```
 
-## 🛠️ Features
+## 🛠️ Dashboard Features
 
-### Dashboard Pages
+### 📊 Overview
 
-1. **📊 Overview** - Key metrics, cluster distribution, scatter plots
-2. **🔍 Company Explorer** - Search and filter companies, view details
-3. **📈 Cluster Analysis** - Compare cluster profiles with AI personas
-4. **⚠️ Anomaly Detection** - Investigate flagged companies with AI
-5. **⚖️ Company Comparison** - Side-by-side competitive analysis
+Key metrics, cluster distribution pie charts, and interactive revenue vs employees scatter plots.
 
-### AI Capabilities
+### 💰 Lead Scoring
 
-- **Cluster Personas**: Auto-generated business personas for each segment
-- **Anomaly Explanation**: Risk assessment for flagged entities
-- **Competitive Analysis**: AI-powered company comparisons
+B2B lead prioritization with tier breakdown, score distribution, and top prospects table.
+
+**Lead Score Calculation:**
+
+- Revenue Potential: 40%
+- Decision-Making Power: 25%
+- Productivity (Rev/Employee): 20%
+- Data Quality: 15%
+
+### 🔍 Company Explorer
+
+Search and filter companies, view detailed profiles, and generate AI-powered insights.
+
+### 📈 Cluster Analysis
+
+Compare cluster profiles with visual charts and AI-generated business personas.
+
+### ⚠️ Risk Detection
+
+Identify high-risk entities including:
+
+- **Shell Companies**: High revenue, zero employees
+- **Data Quality Issues**: Missing critical fields
+- **Orphan Subsidiaries**: Subsidiaries without valid parent links
+
+### ⚖️ Company Comparison
+
+Side-by-side competitive analysis with AI-powered comparisons.
+
+## 🤖 AI Capabilities
+
+Powered by **Google Gemini**, the dashboard provides:
+
+| Feature                   | Description                                              |
+| ------------------------- | -------------------------------------------------------- |
+| **Cluster Personas**      | Auto-generated business personas for each market segment |
+| **Anomaly Investigation** | Risk assessment and explanation for flagged entities     |
+| **Competitive Analysis**  | AI-powered company comparisons with strategic insights   |
+| **Company Insights**      | Individual company analysis with industry context        |
 
 ## 📋 Requirements
 
 - Python 3.9+
 - Google Gemini API Key (for AI features)
-- See `requirements.txt` for full dependencies
+- ~50MB disk space for data files
+
+### Key Dependencies
+
+```
+streamlit>=1.28.0
+pandas>=2.0.0
+plotly>=5.0.0
+scikit-learn>=1.3.0
+google-generativeai>=0.3.0
+```
+
+See `requirements.txt` for full dependencies.
+
+## 🏆 Competition Highlights
+
+This project addresses all requirements of the SDS Datathon 2026:
+
+- ✅ **Identify and group companies** with similar characteristics
+- ✅ **Understand key differences** between companies within and across groups
+- ✅ **Highlight notable patterns**, strengths, risks, and anomalies
+- ✅ **Demonstrate commercial value** through Lead Scoring and Risk Assessment
+- ✅ **BONUS: Generate interpretable explanations** using LLM integration
 
 ## 👥 Team
 

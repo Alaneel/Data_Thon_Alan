@@ -85,11 +85,26 @@ Every time you want to work on the project:
 
 ---
 
-## 🔄 4. Simple Git Workflow (How to Collaborate)
+## 📊 4. Dashboard Pages Overview
+
+The dashboard has **6 main pages**:
+
+| Page                      | Description                                                                 |
+| ------------------------- | --------------------------------------------------------------------------- |
+| **📊 Overview**           | Key metrics, cluster distribution charts, revenue vs employees scatter plot |
+| **💰 Lead Scoring**       | B2B lead prioritization with priority/hot/warm/cold tiers                   |
+| **🔍 Company Explorer**   | Search companies, view details, generate AI insights                        |
+| **📈 Cluster Analysis**   | Compare cluster profiles, AI-generated business personas                    |
+| **⚠️ Risk Detection**     | Shell company detection, data quality issues, risk investigation            |
+| **⚖️ Company Comparison** | Side-by-side competitive analysis with AI                                   |
+
+---
+
+## 🔄 5. Simple Git Workflow (How to Collaborate)
 
 Think of Git like a game save system + Dropbox.
 
-### Step A: Before you start working (Update your "Pull")
+### Step A: Before you start working ("Pull")
 
 Always get the latest changes from your teammates before you start editing.
 
@@ -127,20 +142,67 @@ git push
 
 ---
 
-## 🆘 Troubleshooting Cheat Sheet
+## 📂 6. Project Structure Map
 
-| Problem                           | Solution                                                                                           |
-| :-------------------------------- | :------------------------------------------------------------------------------------------------- |
-| **"Module not found: streamlit"** | You probably forgot to activate the environment. Run `source datathon_env/bin/activate`.           |
-| **"Git conflict"**                | This happens if two people edit the same line. Ask for help before proceeding!                     |
-| **"Permission denied"**           | Make sure you are logged into GitHub. You might need to set up a Personal Access Token or SSH key. |
-| **App keeps crashing**            | Check the Terminal for error messages. Send the error to the group chat.                           |
+| File                               | Description                                                           |
+| ---------------------------------- | --------------------------------------------------------------------- |
+| `app.py`                           | **Main Dashboard File** - All 6 pages and UI code                     |
+| `enhanced_analysis.py`             | Analysis pipeline - generates clustering, lead scores, and risk flags |
+| `llm_insights.py`                  | AI/LLM connection using Google Gemini                                 |
+| `company_segmentation_results.csv` | Processed data used by the dashboard                                  |
+| `champions_group_data.csv`         | Raw dataset (8,559 companies)                                         |
+| `requirements.txt`                 | Python dependencies                                                   |
+
+### Regenerating Analysis Results
+
+If you change the analysis logic or need fresh results:
+
+```bash
+python enhanced_analysis.py
+```
+
+This will regenerate `company_segmentation_results.csv` with updated:
+
+- Cluster assignments
+- Lead scores (0-100)
+- Risk flags
+- Industry benchmarks
 
 ---
 
-## 📂 Project Structure Map
+## 🆘 7. Troubleshooting Cheat Sheet
 
-- `app.py`: **Main Dashboard File**. Most of the code for the UI is here.
-- `enhanced_analysis.py`: Run this if you change the raw data or logic; it generates the results CSV.
-- `llm_insights.py`: Handles the AI/LLM connection.
-- `company_segmentation_results.csv`: The processed data used by the dashboard.
+| Problem                           | Solution                                                                        |
+| :-------------------------------- | :------------------------------------------------------------------------------ |
+| **"Module not found: streamlit"** | You forgot to activate the environment. Run `source datathon_env/bin/activate`. |
+| **"Git conflict"**                | Two people edited the same line. Ask for help before proceeding!                |
+| **"Permission denied"**           | Make sure you are logged into GitHub. You might need a Personal Access Token.   |
+| **App keeps crashing**            | Check the Terminal for error messages. Send the error to the group chat.        |
+| **AI features not working**       | You need to set `GEMINI_API_KEY`. Charts will still work without it.            |
+| **Data looks outdated**           | Run `python enhanced_analysis.py` to regenerate results.                        |
+
+---
+
+## 🔑 8. Getting a Gemini API Key (Optional)
+
+For AI features to work, you need a free Google Gemini API key:
+
+1. Go to [Google AI Studio](https://aistudio.google.com/api-keys)
+2. Sign in with your Google account
+3. Click "Create API key"
+4. Copy the key and set it before running the app:
+   ```bash
+   export GEMINI_API_KEY='your-key-here'
+   ```
+
+> **Note:** The dashboard works fine without an API key - you just won't have AI-generated insights.
+
+---
+
+## 📞 Need Help?
+
+If you're stuck, drop a message in the team group chat with:
+
+1. What you were trying to do
+2. The error message (screenshot or copy-paste)
+3. Which file you were working on
