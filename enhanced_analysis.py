@@ -30,14 +30,31 @@ print("\n📂 Loading data...")
 df = pd.read_csv('champions_group_data.csv')
 print(f"   Loaded {len(df):,} companies")
 
-# Clean numeric columns
+# Clean numeric columns - distinguish between true zeros and missing values
 def clean_numeric(col):
-    return pd.to_numeric(df[col].astype(str).str.replace(',', '').str.strip(), errors='coerce').fillna(0)
+    """Convert to numeric, keeping NaN as NaN (not filling with 0)"""
+    return pd.to_numeric(df[col].astype(str).str.replace(',', '').str.strip(), errors='coerce')
 
-df['Revenue_USD_Clean'] = clean_numeric('Revenue (USD)')
-df['Employees_Total_Clean'] = clean_numeric('Employees Total')
-df['Employees_Site_Clean'] = clean_numeric('Employees Single Site')
-df['Corporate_Family_Size'] = clean_numeric('Corporate Family Members')
+# First, get raw cleaned values (with NaN for missing)
+revenue_raw = clean_numeric('Revenue (USD)')
+employees_raw = clean_numeric('Employees Total')
+
+# Create missing value indicator columns (before filling)
+df['Is_Revenue_Missing'] = revenue_raw.isna() | (revenue_raw == 0)
+df['Is_Employees_Missing'] = employees_raw.isna() | (employees_raw == 0)
+
+# For analysis, fill missing/zero with median of non-zero values (more meaningful than 0)
+revenue_median = revenue_raw[revenue_raw > 0].median()
+employees_median = employees_raw[employees_raw > 0].median()
+
+# Fill strategy: Use 0 for truly missing, but track it separately
+df['Revenue_USD_Clean'] = revenue_raw.fillna(0)
+df['Employees_Total_Clean'] = employees_raw.fillna(0)
+df['Employees_Site_Clean'] = clean_numeric('Employees Single Site').fillna(0)
+df['Corporate_Family_Size'] = clean_numeric('Corporate Family Members').fillna(0)
+
+print(f"   Revenue missing/zero: {df['Is_Revenue_Missing'].sum():,} ({df['Is_Revenue_Missing'].mean()*100:.1f}%)")
+print(f"   Employees missing/zero: {df['Is_Employees_Missing'].sum():,} ({df['Is_Employees_Missing'].mean()*100:.1f}%)")
 
 # ============================================================
 # 2. FEATURE ENGINEERING
@@ -60,19 +77,32 @@ df['Has_Parent'] = df['Parent Company'].notna().astype(int)
 df['SIC_2Digit'] = df['SIC Code'].astype(str).str[:2]
 
 # Revenue per Employee (productivity indicator)
+# For companies with 0 employees, use industry median RPE instead of 0
 df['Revenue_Per_Employee'] = np.where(
     df['Employees_Total_Clean'] > 0,
     df['Revenue_USD_Clean'] / df['Employees_Total_Clean'],
-    0
+    np.nan  # Mark as NaN first, will fill with median
 )
+# Fill missing RPE with overall median (more meaningful than 0)
+rpe_median = df.loc[df['Revenue_Per_Employee'].notna() & (df['Revenue_Per_Employee'] > 0), 'Revenue_Per_Employee'].median()
+df['Revenue_Per_Employee'] = df['Revenue_Per_Employee'].fillna(rpe_median)
 
 # Log-transformed features for better clustering
+# Use small offset for zero values to avoid log(0) issues
 df['Log_Revenue'] = np.log1p(df['Revenue_USD_Clean'])
 df['Log_Employees'] = np.log1p(df['Employees_Total_Clean'])
 
-# Data Completeness Score
+# Data Completeness Score - now considers zero values as incomplete
 important_fields = ['Revenue (USD)', 'Employees Total', 'SIC Code', 'Entity Type', 'Region', 'Country']
-df['Data_Completeness'] = df[important_fields].notna().sum(axis=1) / len(important_fields)
+# A field is considered complete if it's not null AND not zero (for numeric fields)
+df['Data_Completeness'] = (
+    (~df['Is_Revenue_Missing']).astype(int) + 
+    (~df['Is_Employees_Missing']).astype(int) + 
+    df['SIC Code'].notna().astype(int) + 
+    df['Entity Type'].notna().astype(int) + 
+    df['Region'].notna().astype(int) + 
+    df['Country'].notna().astype(int)
+) / 6
 
 print(f"   Created {6} new features")
 
@@ -257,7 +287,9 @@ df['Risk_OrphanSub'] = (df['Entity Type'] == 'Subsidiary') & (df['Has_Parent'] =
 
 # Isolation Forest for statistical anomalies
 iso_features = ['Log_Revenue', 'Log_Employees', 'Revenue_Per_Employee']
-X_iso = df[iso_features].replace([np.inf, -np.inf], np.nan).fillna(0)
+X_iso = df[iso_features].replace([np.inf, -np.inf], np.nan)
+# Use median instead of 0 for missing values (0 would skew anomaly detection)
+X_iso = X_iso.fillna(X_iso.median())
 iso = IsolationForest(contamination=0.05, random_state=42)
 df['Anomaly'] = iso.fit_predict(X_iso)
 df['Anomaly_Label'] = df['Anomaly'].map({1: 'Normal', -1: 'Anomaly'})
@@ -279,6 +311,7 @@ print("\n💾 Saving enhanced results...")
 output_cols = [
     'DUNS Number ', 'Company Sites', 'Country', 'Region', 'Entity Type',
     'SIC Code', 'SIC Description', 'Employees_Total_Clean', 'Revenue_USD_Clean',
+    'Is_Revenue_Missing', 'Is_Employees_Missing',  # New: missing value indicators
     'Entity_Score', 'Has_Parent', 'Revenue_Per_Employee', 'Data_Completeness',
     'Revenue_vs_Industry', 'Employees_vs_Industry',
     'Cluster', 'Cluster_Name',
