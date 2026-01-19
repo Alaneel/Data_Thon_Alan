@@ -55,6 +55,11 @@ impute_df = pd.DataFrame({
     'Employees': employees_raw.replace(0, np.nan)
 })
 
+# Log transform for better KNN performance on skewed data
+# Validated by user request to handle orders of magnitude
+impute_df['Revenue'] = np.log1p(impute_df['Revenue'])
+impute_df['Employees'] = np.log1p(impute_df['Employees'])
+
 # Add Entity Type as ordinal feature to help imputation
 entity_map = {'Headquarters': 4, 'Single Location': 3, 'Subsidiary': 2, 'Branch': 1}
 impute_df['Entity_Ord'] = df['Entity Type'].map(entity_map).fillna(1)
@@ -67,12 +72,12 @@ impute_scaled = scaler_impute.fit_transform(impute_df)
 knn_imputer = KNNImputer(n_neighbors=5)
 impute_filled_scaled = knn_imputer.fit_transform(impute_scaled)
 
-# Inverse transform to get original scale
-impute_filled = scaler_impute.inverse_transform(impute_filled_scaled)
+# Inverse transform to get original scale (still log-transformed)
+impute_filled_log = scaler_impute.inverse_transform(impute_filled_scaled)
 
-# Assign back to dataframe
-df['Revenue_USD_Clean'] = impute_filled[:, 0]
-df['Employees_Total_Clean'] = impute_filled[:, 1]
+# Inverse transform log (expm1) to get actual values
+df['Revenue_USD_Clean'] = np.expm1(impute_filled_log[:, 0])
+df['Employees_Total_Clean'] = np.expm1(impute_filled_log[:, 1])
 df['Employees_Site_Clean'] = clean_numeric('Employees Single Site').fillna(0)
 df['Corporate_Family_Size'] = clean_numeric('Corporate Family Members').fillna(0)
 
