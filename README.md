@@ -69,14 +69,14 @@ pip install -r requirements.txt
 If you need to regenerate analysis results:
 
 ```bash
-python enhanced_analysis.py
+python src/enhanced_analysis.py
 ```
 
 ### 3. Run the Dashboard
 
 ```bash
 export GEMINI_API_KEY='your-api-key'  # Required for AI features
-streamlit run app.py
+streamlit run src/app.py
 ```
 
 ### 4. Open in Browser
@@ -87,13 +87,17 @@ Navigate to http://localhost:8501
 
 ```
 Datathon/
-├── app.py                              # Streamlit dashboard (6 pages)
-├── enhanced_analysis.py                # Full analysis pipeline
-├── llm_insights.py                     # LLM integration module
-├── company_intelligence_analysis.ipynb # Jupyter notebook analysis
-├── company_segmentation_results.csv    # Processed results with scores
-├── champions_group_data.csv            # Raw dataset (8,559 companies)
-├── champions_group_data_desc.csv       # Data dictionary
+├── src/
+│   ├── app.py                          # Streamlit dashboard (6 pages)
+│   ├── enhanced_analysis.py            # Full analysis pipeline
+│   └── llm_insights.py                 # LLM integration module
+├── notebooks/
+│   └── company_intelligence_analysis.ipynb # Jupyter notebook analysis
+├── data/
+│   ├── company_segmentation_results.csv # Processed results with scores
+│   ├── champions_group_data.csv        # Raw dataset (8,559 companies)
+│   └── champions_group_data_desc.csv   # Data dictionary
+├── models/                             # Saved models and artifacts
 ├── requirements.txt                    # Python dependencies
 ├── COLLABORATION_GUIDE.md              # Team onboarding guide
 └── README.md                           # This file

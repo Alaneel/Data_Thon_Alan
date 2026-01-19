@@ -22,6 +22,11 @@ import json
 import warnings
 warnings.filterwarnings('ignore')
 
+# Calculate project root (parent of src/)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
+MODELS_DIR = os.path.join(PROJECT_ROOT, 'models')
+
 print("=" * 60)
 print("🚀 ENHANCED COMPANY INTELLIGENCE ANALYSIS")
 print("   SDS Datathon 2026 - Competitive Version")
@@ -31,7 +36,7 @@ print("=" * 60)
 # 1. DATA LOADING & CLEANING
 # ============================================================
 print("\n📂 Loading data...")
-df = pd.read_csv('champions_group_data.csv')
+df = pd.read_csv(os.path.join(DATA_DIR, 'champions_group_data.csv'))
 print(f"   Loaded {len(df):,} companies")
 
 # Clean numeric columns - distinguish between true zeros and missing values
@@ -367,17 +372,16 @@ print(f"      Statistical anomaly: {(df['Anomaly'] == -1).sum():,}")
 # 7. SAVE MODELS & ARTIFACTS
 # ============================================================
 print("\n💾 Saving models & artifacts...")
-model_dir = "models"
-os.makedirs(model_dir, exist_ok=True)
+os.makedirs(MODELS_DIR, exist_ok=True)
 
 # 1. Preprocessing Objects
-joblib.dump(scaler_impute, f"{model_dir}/scaler_impute.joblib")
-joblib.dump(knn_imputer, f"{model_dir}/knn_imputer.joblib")
-print(f"   Saved imputer objects to {model_dir}/")
+joblib.dump(scaler_impute, os.path.join(MODELS_DIR, 'scaler_impute.joblib'))
+joblib.dump(knn_imputer, os.path.join(MODELS_DIR, 'knn_imputer.joblib'))
+print(f"   Saved imputer objects to {MODELS_DIR}/")
 
 # 2. Industry Stats
-industry_stats.to_csv(f"{model_dir}/industry_stats.csv", index=False)
-print(f"   Saved industry stats to {model_dir}/industry_stats.csv")
+industry_stats.to_csv(os.path.join(MODELS_DIR, 'industry_stats.csv'), index=False)
+print(f"   Saved industry stats to {MODELS_DIR}/industry_stats.csv")
 
 # 3. Global Stats (Medians, Defaults)
 global_stats = {
@@ -386,18 +390,18 @@ global_stats = {
     "best_k": int(best_k),
     "entity_map": entity_map
 }
-with open(f"{model_dir}/global_stats.json", "w") as f:
+with open(os.path.join(MODELS_DIR, 'global_stats.json'), "w") as f:
     json.dump(global_stats, f, indent=4)
-print(f"   Saved global stats to {model_dir}/global_stats.json")
+print(f"   Saved global stats to {MODELS_DIR}/global_stats.json")
 
 # 4. Clustering Models
-joblib.dump(scaler, f"{model_dir}/scaler_cluster.joblib")
-joblib.dump(kmeans, f"{model_dir}/kmeans.joblib")
-print(f"   Saved clustering models to {model_dir}/")
+joblib.dump(scaler, os.path.join(MODELS_DIR, 'scaler_cluster.joblib'))
+joblib.dump(kmeans, os.path.join(MODELS_DIR, 'kmeans.joblib'))
+print(f"   Saved clustering models to {MODELS_DIR}/")
 
 # 5. Isolation Forest
-joblib.dump(iso, f"{model_dir}/isolation_forest.joblib")
-print(f"   Saved anomaly detection model to {model_dir}/")
+joblib.dump(iso, os.path.join(MODELS_DIR, 'isolation_forest.joblib'))
+print(f"   Saved anomaly detection model to {MODELS_DIR}/")
 
 
 # ============================================================
@@ -417,9 +421,9 @@ output_cols = [
 ]
 
 df_output = df[[c for c in output_cols if c in df.columns]]
-df_output.to_csv('company_segmentation_results.csv', index=False)
+df_output.to_csv(os.path.join(DATA_DIR, 'company_segmentation_results.csv'), index=False)
 
-print(f"   Saved {len(df_output):,} companies to company_segmentation_results.csv")
+print(f"   Saved {len(df_output):,} companies to {DATA_DIR}/company_segmentation_results.csv")
 
 # ============================================================
 # 9. SUMMARY

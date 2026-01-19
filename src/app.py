@@ -25,6 +25,15 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
+import sys
+
+# Calculate project root (parent of src/)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
+MODELS_DIR = os.path.join(PROJECT_ROOT, 'models')
+
+# Add src to path for local imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Page configuration
 st.set_page_config(
@@ -71,8 +80,8 @@ st.markdown("""
 @st.cache_data
 def load_data():
     """Load the segmentation results and full dataset"""
-    results_df = pd.read_csv('company_segmentation_results.csv')
-    full_df = pd.read_csv('champions_group_data.csv')
+    results_df = pd.read_csv(os.path.join(DATA_DIR, 'company_segmentation_results.csv'))
+    full_df = pd.read_csv(os.path.join(DATA_DIR, 'champions_group_data.csv'))
     return results_df, full_df
 
 @st.cache_resource
@@ -93,7 +102,7 @@ def load_evaluator():
     """Initialize Inference Engine"""
     try:
         from inference_engine import CompanyEvaluator
-        return CompanyEvaluator()
+        return CompanyEvaluator(model_dir=MODELS_DIR)
     except Exception as e:
         st.warning(f"Inference Engine not available: {e}")
         return None
