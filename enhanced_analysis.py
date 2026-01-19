@@ -14,6 +14,7 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.cluster import KMeans
 from sklearn.ensemble import IsolationForest
+from sklearn.impute import KNNImputer
 from sklearn.metrics import silhouette_score
 import warnings
 warnings.filterwarnings('ignore')
@@ -40,16 +41,35 @@ revenue_raw = clean_numeric('Revenue (USD)')
 employees_raw = clean_numeric('Employees Total')
 
 # Create missing value indicator columns (before filling)
+# Treat 0 as missing for the purpose of imputation (assuming 0 revenue/employees is unlikely for active companies)
 df['Is_Revenue_Missing'] = revenue_raw.isna() | (revenue_raw == 0)
 df['Is_Employees_Missing'] = employees_raw.isna() | (employees_raw == 0)
 
-# For analysis, fill missing/zero with median of non-zero values (more meaningful than 0)
-revenue_median = revenue_raw[revenue_raw > 0].median()
-employees_median = employees_raw[employees_raw > 0].median()
+# Prepare for KNN Imputation
+print("   Performing KNN Imputation for missing values...")
+impute_df = pd.DataFrame({
+    'Revenue': revenue_raw.replace(0, np.nan),
+    'Employees': employees_raw.replace(0, np.nan)
+})
 
-# Fill strategy: Use 0 for truly missing, but track it separately
-df['Revenue_USD_Clean'] = revenue_raw.fillna(0)
-df['Employees_Total_Clean'] = employees_raw.fillna(0)
+# Add Entity Type as ordinal feature to help imputation
+entity_map = {'Headquarters': 4, 'Single Location': 3, 'Subsidiary': 2, 'Branch': 1}
+impute_df['Entity_Ord'] = df['Entity Type'].map(entity_map).fillna(1)
+
+# Scale before KNN
+scaler_impute = StandardScaler()
+impute_scaled = scaler_impute.fit_transform(impute_df)
+
+# Impute (using 5 neighbors)
+knn_imputer = KNNImputer(n_neighbors=5)
+impute_filled_scaled = knn_imputer.fit_transform(impute_scaled)
+
+# Inverse transform to get original scale
+impute_filled = scaler_impute.inverse_transform(impute_filled_scaled)
+
+# Assign back to dataframe
+df['Revenue_USD_Clean'] = impute_filled[:, 0]
+df['Employees_Total_Clean'] = impute_filled[:, 1]
 df['Employees_Site_Clean'] = clean_numeric('Employees Single Site').fillna(0)
 df['Corporate_Family_Size'] = clean_numeric('Corporate Family Members').fillna(0)
 
@@ -77,14 +97,11 @@ df['Has_Parent'] = df['Parent Company'].notna().astype(int)
 df['SIC_2Digit'] = df['SIC Code'].astype(str).str[:2]
 
 # Revenue per Employee (productivity indicator)
-# For companies with 0 employees, use industry median RPE instead of 0
-df['Revenue_Per_Employee'] = np.where(
-    df['Employees_Total_Clean'] > 0,
-    df['Revenue_USD_Clean'] / df['Employees_Total_Clean'],
-    np.nan  # Mark as NaN first, will fill with median
-)
-# Fill missing RPE with overall median (more meaningful than 0)
-rpe_median = df.loc[df['Revenue_Per_Employee'].notna() & (df['Revenue_Per_Employee'] > 0), 'Revenue_Per_Employee'].median()
+# Handle potential division by zero if KNN somehow left 0s (unlikely but safe) or if imputation resulted in very small numbers
+df['Revenue_Per_Employee'] = df['Revenue_USD_Clean'] / df['Employees_Total_Clean'].replace(0, np.nan)
+
+# Fill any remaining NaNs (e.g. from 0 employees) with median
+rpe_median = df['Revenue_Per_Employee'].median()
 df['Revenue_Per_Employee'] = df['Revenue_Per_Employee'].fillna(rpe_median)
 
 # Log-transformed features for better clustering
@@ -188,24 +205,59 @@ cluster_profiles = df.groupby('Cluster').agg({
     'Has_Parent': 'mean'
 }).round(2)
 
-def name_cluster(row):
-    revenue = row['Revenue_USD_Clean']
-    employees = row['Employees_Total_Clean']
-    entity = row['Entity_Score']
-    has_parent = row['Has_Parent']
+def get_cluster_context(df_data, k):
+    """
+    Dynamically names clusters using MODE (Most Frequent) for Entity Type
+    to avoid averaging dilution.
+    """
+    # 1. Calculate Centroids & Dominant Type
+    # 使用 lambda x: x.mode()[0] 来提取众数（该组中最常见的类型）
+    profiles = df_data.groupby('Cluster').agg({
+        'Revenue_USD_Clean': 'median',
+        'Employees_Total_Clean': 'median',
+        'Entity_Score': lambda x: x.mode().iloc[0] if not x.mode().empty else x.mean() 
+    }).reset_index()
     
-    size = "Enterprise" if revenue > 1e6 else "SMB" if revenue > 1e4 else "Micro"
-    structure = "HQ/Parent" if entity > 2.5 else "Subsidiary" if has_parent > 0.5 else "Independent"
+    # 2. Assign Tiers based on Revenue Rank (1 = Highest Revenue)
+    profiles['Rank'] = profiles['Revenue_USD_Clean'].rank(ascending=False, method='min').astype(int)
     
-    return f"{size} {structure}"
+    # 3. Generate Dynamic Names
+    def generate_name(row):
+        # Tier Part
+        tier = f"Tier {row['Rank']}"
+        
+        # Structure Part - 现在这是众数，是整数 (4, 3, 2, 1)
+        score = row['Entity_Score']
+        
+        if score >= 4:       # 主要是总部
+            structure = "HQ"
+        elif score >= 3:     # 主要是独立地点
+            structure = "Indep/Strategic" 
+        elif score >= 2:     # 主要是子公司
+            structure = "Subsidiary"
+        else:                # 主要是分支机构
+            structure = "Branch"
+            
+        return f"{tier} {structure}"
 
-cluster_profiles['Cluster_Name'] = cluster_profiles.apply(name_cluster, axis=1)
-df['Cluster_Name'] = df['Cluster'].map(cluster_profiles['Cluster_Name'].to_dict())
+    profiles['Cluster_Name'] = profiles.apply(generate_name, axis=1)
+    
+    return profiles.set_index('Cluster')['Cluster_Name'].to_dict()
+
+cluster_names_map = get_cluster_context(df, best_k)
+df['Cluster_Name'] = df['Cluster'].map(cluster_names_map)
+
+print(f"   Cluster distribution (Dynamic Naming):")
+cluster_counts = df['Cluster'].value_counts()
+for cluster_id in sorted(df['Cluster'].unique()):
+    name = cluster_names_map[cluster_id]
+    count = cluster_counts[cluster_id]
+    # Get median revenue for context in print output
+    med_rev = df[df['Cluster'] == cluster_id]['Revenue_USD_Clean'].median()
+    print(f"      {name:<25} (ID {cluster_id}): {count:,} companies | Median Rev: ${med_rev:,.0f}")
 
 print(f"   Cluster distribution:")
-for idx, name in cluster_profiles['Cluster_Name'].items():
-    count = (df['Cluster'] == idx).sum()
-    print(f"      Cluster {idx}: {name} ({count:,} companies)")
+
 
 # ============================================================
 # 5. B2B LEAD SCORE CALCULATION

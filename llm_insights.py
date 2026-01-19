@@ -20,6 +20,8 @@ import os
 import google.generativeai as genai
 from typing import Dict, List, Any
 import pandas as pd
+import json
+
 
 class CompanyInsightGenerator:
     """
@@ -142,3 +144,52 @@ class CompanyInsightGenerator:
             return response.text
         except Exception as e:
             return f"Error comparing companies: {e}"
+
+    def generate_action_report(self, company_row: pd.Series) -> Dict[str, str]:
+        """
+        Generates a 'Battle Report' (Verdict, Reason, Risk, Action) for a company.
+        Returns a dictionary.
+        """
+        if not self.enabled:
+            return {
+                "Method": "LLM-Based (Mock)",
+                "Verdict": "🤖 AI VERDICT (Simulated)",
+                "Reason": "Enable LLM to generate natural language analysis.",
+                "Risk": "AI would identify risks here.",
+                "Action": "Enable LLM for specific recommendations."
+            }
+
+        prompt = f'''
+        Act as a Senior Sales & Risk Analyst. Analyze this company for our B2B Sales Team.
+        
+        COMPANY DATA:
+        - Name: {company_row.get('DUNS Number ', 'Unknown')}
+        - Cluster: {company_row.get('Cluster_Name', 'Unknown')}
+        - Revenue: ${company_row.get('Revenue_USD_Clean', 0):,.0f}
+        - Employees: {company_row.get('Employees_Total_Clean', 0):,.0f}
+        - Lead Score: {company_row.get('Lead_Score', 0)} ({company_row.get('Lead_Tier', 'Unknown')})
+        - Risk Flags: {company_row.get('Risk_Flags', 0)}
+        - Details: Anomaly={company_row.get('Anomaly_Label', 'N/A')}, Shell={company_row.get('Risk_Shell', False)}
+        
+        OUTPUT JSON FORMAT:
+        {{
+            "Verdict": "Short powerful phrase (e.g., 'Prime Acquisition Target' or 'Stay Away')",
+            "Reason": "One sharp sentence explaining why, highlighting nuances.",
+            "Risk": "Assessment of risk, detecting subtleties (e.g., 'Revenue seems too high for team size').",
+            "Action": "Specific recommendation (e.g., 'Send VP of Sales', 'Request Financial Audit')."
+        }}
+        
+        Return ONLY VALID JSON.
+        '''
+        
+        try:
+            response = self.model.generate_content(prompt)
+            text = response.text.strip()
+            # Clean potential markdown
+            if text.startswith("```json"):
+                text = text[7:]
+            if text.endswith("```"):
+                text = text[:-3]
+            return json.loads(text.strip())
+        except Exception as e:
+            return {"Method": "LLM-Based", "Error": str(e)}
