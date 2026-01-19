@@ -62,4 +62,5 @@ sds_datathon_2026_problem_statement.txt
 *.jpg
 *.svg
 *.json
+!models/global_stats.json
 html/

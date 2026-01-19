@@ -21,8 +21,19 @@ This project analyzes B2B company data to provide actionable business intelligen
 | Clusters Identified        | 4      |
 | Silhouette Score           | 0.4801 |
 | Industry Sectors Analyzed  | 70+    |
-| Priority Leads (Score ≥70) | 1,200+ |
-| High-Risk Entities         | 400+   |
+| Priority Leads (Score ≥70) | 2,500+ |
+| High-Risk Entities         | 420+   |
+
+### Dynamic Cluster Naming
+
+Clusters are no longer static "Cluster 0/1". They are now dynamically named using a Tiered System ranking Revenue and Entity Structure:
+
+- **Tier 1**: Top Revenue Segment
+- **Tier 2-3**: Mid-Market
+- **Tier 4+**: Small/Micro Segment
+- **Structure**: HQ, Subsidiary, Branch, or Independent
+
+**Example Result:** `Tier 1 HQ` vs `Tier 4 Branch`.
 
 ### Cluster Profiles
 
@@ -105,6 +116,16 @@ B2B lead prioritization with tier breakdown, score distribution, and top prospec
 - Productivity (Rev/Employee): 20%
 - Data Quality: 15%
 
+- Data Quality: 15%
+
+### ⚔️ Battle Report (New)
+
+Generate instant, AI-driven sales reports for any company:
+
+- **Verdict**: Immediate "Go/No-Go" call.
+- **Action**: Specific CRM next steps.
+- **Risk**: Hidden red flags analysis.
+
 ### 🔍 Company Explorer
 
 Search and filter companies, view detailed profiles, and generate AI-powered insights.
@@ -129,12 +150,12 @@ Side-by-side competitive analysis with AI-powered comparisons.
 
 Powered by **Google Gemini**, the dashboard provides:
 
-| Feature                   | Description                                              |
-| ------------------------- | -------------------------------------------------------- |
-| **Cluster Personas**      | Auto-generated business personas for each market segment |
-| **Anomaly Investigation** | Risk assessment and explanation for flagged entities     |
-| **Competitive Analysis**  | AI-powered company comparisons with strategic insights   |
-| **Company Insights**      | Individual company analysis with industry context        |
+| Feature                   | Description                                               |
+| ------------------------- | --------------------------------------------------------- |
+| **Cluster Personas**      | Auto-generated business personas for each market segment  |
+| **Anomaly Investigation** | Risk assessment and explanation for flagged entities      |
+| **Competitive Analysis**  | AI-powered company comparisons with strategic insights    |
+| **⚔️ Battle Reports**     | Actionable sales playbooks with Verdict, Reason, & Action |
 
 ## 📋 Requirements
 

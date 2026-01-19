@@ -16,6 +16,9 @@ from sklearn.cluster import KMeans
 from sklearn.ensemble import IsolationForest
 from sklearn.impute import KNNImputer
 from sklearn.metrics import silhouette_score
+import joblib
+import os
+import json
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -356,7 +359,44 @@ print(f"      Orphan subsidiary: {df['Risk_OrphanSub'].sum():,}")
 print(f"      Statistical anomaly: {(df['Anomaly'] == -1).sum():,}")
 
 # ============================================================
-# 7. SAVE ENHANCED RESULTS
+# 7. SAVE MODELS & ARTIFACTS
+# ============================================================
+print("\n💾 Saving models & artifacts...")
+model_dir = "models"
+os.makedirs(model_dir, exist_ok=True)
+
+# 1. Preprocessing Objects
+joblib.dump(scaler_impute, f"{model_dir}/scaler_impute.joblib")
+joblib.dump(knn_imputer, f"{model_dir}/knn_imputer.joblib")
+print(f"   Saved imputer objects to {model_dir}/")
+
+# 2. Industry Stats
+industry_stats.to_csv(f"{model_dir}/industry_stats.csv", index=False)
+print(f"   Saved industry stats to {model_dir}/industry_stats.csv")
+
+# 3. Global Stats (Medians, Defaults)
+global_stats = {
+    "rpe_median": float(rpe_median),
+    "cluster_names_map": {int(k): v for k, v in cluster_names_map.items()},
+    "best_k": int(best_k),
+    "entity_map": entity_map
+}
+with open(f"{model_dir}/global_stats.json", "w") as f:
+    json.dump(global_stats, f, indent=4)
+print(f"   Saved global stats to {model_dir}/global_stats.json")
+
+# 4. Clustering Models
+joblib.dump(scaler, f"{model_dir}/scaler_cluster.joblib")
+joblib.dump(kmeans, f"{model_dir}/kmeans.joblib")
+print(f"   Saved clustering models to {model_dir}/")
+
+# 5. Isolation Forest
+joblib.dump(iso, f"{model_dir}/isolation_forest.joblib")
+print(f"   Saved anomaly detection model to {model_dir}/")
+
+
+# ============================================================
+# 8. SAVE ENHANCED RESULTS
 # ============================================================
 print("\n💾 Saving enhanced results...")
 
@@ -377,7 +417,7 @@ df_output.to_csv('company_segmentation_results.csv', index=False)
 print(f"   Saved {len(df_output):,} companies to company_segmentation_results.csv")
 
 # ============================================================
-# 8. SUMMARY
+# 9. SUMMARY
 # ============================================================
 print("\n" + "=" * 60)
 print("📈 ENHANCED ANALYSIS SUMMARY")

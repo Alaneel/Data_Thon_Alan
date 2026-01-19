@@ -88,10 +88,21 @@ def load_llm():
         st.warning(f"LLM not available: {e}")
         return None
 
+@st.cache_resource
+def load_evaluator():
+    """Initialize Inference Engine"""
+    try:
+        from inference_engine import CompanyEvaluator
+        return CompanyEvaluator()
+    except Exception as e:
+        st.warning(f"Inference Engine not available: {e}")
+        return None
+
 # Load resources
 try:
     results_df, full_df = load_data()
     llm = load_llm()
+    evaluator = load_evaluator()
 except Exception as e:
     st.error(f"Error loading data: {e}")
     st.stop()
@@ -104,7 +115,7 @@ with st.sidebar:
     # Navigation
     page = st.radio(
         "📍 Navigation",
-        ["📊 Overview", "💰 Lead Scoring", "🔍 Company Explorer", "📈 Cluster Analysis", "⚠️ Risk Detection", "⚖️ Company Comparison"],
+        ["📊 Overview", "💰 Lead Scoring", "🔍 Company Explorer", "📈 Cluster Analysis", "⚠️ Risk Detection", "⚖️ Company Comparison", "🚀 New Company Simulator"],
         index=0
     )
     
@@ -369,15 +380,35 @@ elif page == "🔍 Company Explorer":
                 else:
                     st.markdown("**Status:** <span class='normal-badge'>✓ Normal</span>", unsafe_allow_html=True)
             
-            # LLM Insight
-            if st.button("🤖 Generate AI Insight", key="company_insight"):
+            # LLM Insight - Battle Report
+            if st.button("⚔️ Generate Battle Report", key="company_battle_report"):
                 if llm and llm.enabled:
-                    with st.spinner("Generating insight..."):
-                        # Get cluster average for comparison
-                        cluster_avg = filtered_df[filtered_df['Cluster_Name'] == cluster_name][['Revenue_USD_Clean', 'Employees_Total_Clean']].mean()
-                        insight = llm.explain_anomaly(company_data, cluster_avg)
-                        st.markdown("#### 🧠 AI Analysis")
-                        st.markdown(insight)
+                    with st.spinner("Analyzing competitive intel..."):
+                        # Get cluster average for comparison is not strictly needed for the report 
+                        # but we pass the row data
+                        report = llm.generate_action_report(company_data)
+                        
+                        st.markdown("#### ⚔️ Battle Report")
+                        
+                        # 4-Column Metric Layout
+                        r1, r2, r3, r4 = st.columns(4)
+                        
+                        with r1:
+                            st.markdown(f"**Verdict**")
+                            st.info(f"{report.get('Verdict', 'N/A')}")
+                            
+                        with r2:
+                            st.markdown(f"**Action**")
+                            st.success(f"{report.get('Action', 'N/A')}")
+                            
+                        with r3:
+                            st.markdown(f"**Reason**")
+                            st.warning(f"{report.get('Reason', 'N/A')}")
+                            
+                        with r4:
+                            st.markdown(f"**Risk**")
+                            st.error(f"{report.get('Risk', 'N/A')}")
+                            
                 else:
                     st.warning("LLM is not enabled. Set GEMINI_API_KEY environment variable.")
 
@@ -607,6 +638,108 @@ elif page == "⚖️ Company Comparison":
                     st.markdown(insight)
             else:
                 st.warning("LLM is not enabled. Set GEMINI_API_KEY environment variable.")
+
+# ============== PAGE: SIMULATOR ==============
+elif page == "🚀 New Company Simulator":
+    st.markdown('<h1 class="main-header">🚀 New Company Simulator</h1>', unsafe_allow_html=True)
+    
+    st.markdown("""
+    **Business Use Case:** Simulate a new market entrant or prospect to instantly evaluate their 
+    potential fit, risk profile, and sales strategy using our AI models.
+    """)
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.markdown("### 📝 Company Parameters")
+        
+        with st.form("simulator_form"):
+            sim_name = st.text_input("Company Name", "Future Tech Inc.")
+            sim_rev = st.number_input("Annual Revenue (USD)", min_value=0.0, value=5000000.0, step=100000.0)
+            sim_emp = st.number_input("Total Employees", min_value=1.0, value=25.0, step=1.0)
+            
+            # Dropdowns from existing data
+            industries = sorted(results_df['SIC Description'].dropna().unique().tolist())
+            sim_ind = st.selectbox("Industry", industries, index=industries.index('Business Services, Not Elsewhere Classified') if 'Business Services, Not Elsewhere Classified' in industries else 0)
+            
+            regions = sorted(results_df['Region'].dropna().unique().tolist())
+            sim_region = st.selectbox("Region", regions, index=0)
+            
+            entity_types = ['Headquarters', 'Single Location', 'Subsidiary', 'Branch'] 
+            sim_entity = st.selectbox("Entity Type", entity_types, index=0)
+            
+            submitted = st.form_submit_button("🚀 Analyze Strategy")
+            
+    with col2:
+        if submitted:
+            if evaluator and evaluator.loaded:
+                # Construct input dict
+                sim_data = {
+                    "Name": sim_name,
+                    "Revenue (USD)": sim_rev,
+                    "Employees Total": sim_emp,
+                    "SIC Description": sim_ind,
+                    "Region": sim_region,
+                    "Entity Type": sim_entity,
+                    # Optional/Implicit
+                    "Parent Company": "Simulated Parent" if sim_entity == "Subsidiary" else None
+                }
+                
+                with st.spinner("Running Inference Engine..."):
+                    result = evaluator.predict(sim_data)
+                    
+                    # Store Result in Session State (Optional, but good for re-renders)
+                    
+                    st.markdown("### 🎯 Strategic Analysis")
+                    
+                    # 1. Top Cards
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        st.metric("Predicted Cluster", result['Cluster'])
+                    with c2:
+                        st.metric("Lead Score", f"{result['Lead_Score']:.0f} ({result['Lead_Tier']})")
+                    with c3:
+                        if result['Anomaly'] == 'Anomaly':
+                             st.metric("Risk Status", "⚠️ Risk Detected", delta_color="inverse")
+                        else:
+                             st.metric("Risk Status", "✅ Normal", delta_color="normal")
+                    
+                    st.markdown("---")
+                    
+                    # 2. Battle Report (LLM)
+                    # 2. Battle Report (LLM)
+                    if llm and llm.enabled:
+                        st.markdown("#### ⚔️ AI Battle Report")
+                        try:
+                            with st.spinner("Generating AI Strategy..."):
+                                # Enhance data for LLM
+                                sim_data.update(result) # Merge inference results
+                                report = llm.generate_action_report(pd.Series(sim_data))
+                                
+                                # Check for errors
+                                if "Error" in report:
+                                    st.error(f"AI Analysis Failed: {report['Error']}")
+                                else:
+                                    r1, r2, r3, r4 = st.columns(4)
+                                    
+                                    with r1:
+                                        st.info(f"**Verdict:** {report.get('Verdict', 'N/A')}")
+                                    with r2:
+                                        st.success(f"**Action:** {report.get('Action', 'N/A')}")
+                                    with r3:
+                                        st.warning(f"**Reason:** {report.get('Reason', 'N/A')}")
+                                    with r4:
+                                        st.error(f"**Risk:** {report.get('Risk', 'N/A')}")
+                        except Exception as e:
+                            st.error(f"An error occurred while generating/displaying the report: {str(e)}")
+                            print(f"DEBUG: Report generation error: {e}")
+                    else:
+                        st.info("Enable LLM (GEMINI_API_KEY) for detailed Battle Report.")
+                        
+            else:
+                st.error("Inference Engine is not loaded. Please ensure models/ directory exists.")
+        else:
+            st.info("👈 Enter company details and click 'Analyze Strategy' to see the magic.")
 
 # Footer
 st.markdown("---")

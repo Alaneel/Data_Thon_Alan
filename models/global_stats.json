@@ -1,0 +1,19 @@
+{
+    "rpe_median": 55172.0,
+    "cluster_names_map": {
+        "0": "Tier 5.0 Branch",
+        "1": "Tier 4.0 Subsidiary",
+        "2": "Tier 2.0 Branch",
+        "3": "Tier 7.0 Subsidiary",
+        "4": "Tier 3.0 Branch",
+        "5": "Tier 1.0 Branch",
+        "6": "Tier 6.0 Branch"
+    },
+    "best_k": 7,
+    "entity_map": {
+        "Headquarters": 4,
+        "Single Location": 3,
+        "Subsidiary": 2,
+        "Branch": 1
+    }
+}

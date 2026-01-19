@@ -21,6 +21,8 @@ import google.generativeai as genai
 from typing import Dict, List, Any
 import pandas as pd
 import json
+import time
+import re
 
 
 class CompanyInsightGenerator:
@@ -29,9 +31,10 @@ class CompanyInsightGenerator:
     Defaults to Google Gemini API.
     """
     
-    def __init__(self, api_key: str = None, model_name: str = 'gemini-3-flash-preview'):
+    def __init__(self, api_key: str = None, model_name: str = 'gemini-3-flash-preview', fallback_model: str = 'gemini-2.5-flash', status_callback=None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.enabled = False
+        self.status_callback = status_callback
         
         if not self.api_key:
             print("⚠️ Warning: GEMINI_API_KEY not found. Intelligent features will run in mock mode.")
@@ -40,10 +43,99 @@ class CompanyInsightGenerator:
             try:
                 genai.configure(api_key=self.api_key)
                 self.model = genai.GenerativeModel(model_name)
+                self.fallback_model = genai.GenerativeModel(fallback_model)
                 self.enabled = True
-                print(f"✅ LLM Insight Generator initialized with {model_name}")
+                print(f"✅ LLM Insight Generator initialized with Primary: {model_name}, Fallback: {fallback_model}")
             except Exception as e:
                 print(f"❌ Failed to initialize LLM: {e}")
+
+    def _safe_get_text(self, response) -> str:
+        """Safely extracts text from response, handling empty/blocked cases."""
+        try:
+            # Check for candidates
+            if not response.candidates:
+                return "Error: No response candidates returned."
+            
+            candidate = response.candidates[0]
+            
+            # Check if safety filters were triggered (often finish_reason=3 or 4)
+            # 1=STOP, 2=MAX_TOKENS, 3=SAFETY, 4=RECITATION, 5=OTHER
+            if candidate.finish_reason > 2: 
+                return f"Error: Request blocked (Reason Code: {candidate.finish_reason})"
+            
+            # Check for content parts
+            if not candidate.content.parts:
+                return "Error: Empty response content."
+                
+            return response.text
+        except Exception as e:
+            return f"Error parsing response: {e}"
+        
+    def _notify(self, message):
+        """Helper to send status updates if callback exists."""
+        if self.status_callback:
+            self.status_callback(message)
+        print(message)
+
+    def _generate_with_retry(self, prompt, retries=3, backoff_factor=2):
+        """Generates content with retry logic for rate limits + Model Fallback."""
+        current_model = self.model
+        using_fallback = False
+        
+        for i in range(retries + 1):
+            try:
+                return current_model.generate_content(prompt)
+            except Exception as e:
+                error_str = str(e)
+                # Check for 429 / Quota Exceeded
+                if "429" in error_str or "Quota exceeded" in error_str:
+                    
+                    # Try switching to fallback model if not already
+                    if not using_fallback and i < retries:
+                        self._notify(f"⚠️ Primary model quota exceeded. Switching to Fallback Model...")
+                        current_model = self.fallback_model
+                        using_fallback = True
+                        time.sleep(1) # Small buffer
+                        continue
+                    
+                    if i < retries:
+                        # Smart wait: parse "retry in X seconds"
+                        wait_match = re.search(r"retry in (\d+\.?\d*)s", error_str)
+                        if wait_match:
+                            sleep_time = float(wait_match.group(1)) + 1 # Buffer
+                            # Cap wait to avoid hanging too long (e.g., 60s)
+                            sleep_time = min(sleep_time, 60)
+                        else:
+                            sleep_time = (i + 1) * backoff_factor
+                            
+                        self._notify(f"⏳ Rate limit hit. Waiting {sleep_time:.0f}s before retry {i+1}...")
+                        time.sleep(sleep_time)
+                        continue
+                        self._notify(f"⏳ Rate limit hit. Waiting {sleep_time:.0f}s before retry {i+1}...")
+                        time.sleep(sleep_time)
+                        continue
+                # If it's a 429 but we are out of retries, we still want to suppress it and return mock
+                if "429" in error_str or "Quota exceeded" in error_str:
+                     self._notify(f"⚠️ Quota exceeded and retries exhausted.")
+                     break
+                
+                raise e # Re-raise if not quota error
+        
+        # If we exhausted retries for rate limit or encountered an unrecoverable 429
+        self._notify(f"❌ Rate limit persisted. Returning fallback response.")
+        
+        # Create a Mock Response object structure that mimics Gemini response
+        class MockCandidate:
+            class Content:
+                parts = ["Mock content"]
+            content = Content()
+            finish_reason = 1
+            
+        class MockResponse:
+            candidates = [MockCandidate()]
+            text = "Error: Rate Limit Exceeded. (Mock: This company shows strong fundamentals but requires further due diligence.)"
+            
+        return MockResponse()
 
     def generate_cluster_insight(self, cluster_id: int, profile: Dict[str, Any], key_features: List[str] = None) -> str:
         """Generates a business persona and strategic analysis for a company cluster."""
@@ -76,8 +168,8 @@ class CompanyInsightGenerator:
         """
         
         try:
-            response = self.model.generate_content(prompt)
-            return response.text
+            response = self._generate_with_retry(prompt)
+            return self._safe_get_text(response)
         except Exception as e:
             return f"Error generating insight: {e}"
 
@@ -109,8 +201,8 @@ class CompanyInsightGenerator:
         """
         
         try:
-            response = self.model.generate_content(prompt)
-            return response.text
+            response = self._generate_with_retry(prompt)
+            return self._safe_get_text(response)
         except Exception as e:
             return f"Error explaining anomaly: {e}"
 
@@ -140,8 +232,8 @@ class CompanyInsightGenerator:
         """
         
         try:
-            response = self.model.generate_content(prompt)
-            return response.text
+            response = self._generate_with_retry(prompt)
+            return self._safe_get_text(response)
         except Exception as e:
             return f"Error comparing companies: {e}"
 
@@ -183,8 +275,13 @@ class CompanyInsightGenerator:
         '''
         
         try:
-            response = self.model.generate_content(prompt)
-            text = response.text.strip()
+            response = self._generate_with_retry(prompt)
+            text = self._safe_get_text(response).strip()
+            
+            # Check for error prefix from safe_get_text
+            if text.startswith("Error"):
+                 return {"Method": "LLM-Based", "Error": text}
+
             # Clean potential markdown
             if text.startswith("```json"):
                 text = text[7:]
@@ -192,4 +289,5 @@ class CompanyInsightGenerator:
                 text = text[:-3]
             return json.loads(text.strip())
         except Exception as e:
+            print(f"❌ LLM Error: {e}")
             return {"Method": "LLM-Based", "Error": str(e)}
