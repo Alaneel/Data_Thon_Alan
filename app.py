@@ -643,101 +643,105 @@ elif page == "⚖️ Company Comparison":
 elif page == "🚀 New Company Simulator":
     st.markdown('<h1 class="main-header">🚀 New Company Simulator</h1>', unsafe_allow_html=True)
     
+    # --- 1. 初始化 Session State ---
+    # 这样可以确保即使用户切换页面回来，或者触发重绘，结果也不会丢失
+    if "sim_data_ready" not in st.session_state:
+        st.session_state.sim_data_ready = False
+    if "sim_prediction" not in st.session_state:
+        st.session_state.sim_prediction = None
+    if "sim_battle_report" not in st.session_state:
+        st.session_state.sim_battle_report = None
+
     st.markdown("""
-    **Business Use Case:** Simulate a new market entrant or prospect to instantly evaluate their 
-    potential fit, risk profile, and sales strategy using our AI models.
+    **Business Use Case:** Simulate a new market entrant or prospect to evaluate 
+    potential fit and sales strategy.
     """)
     
-    col1, col2 = st.columns([1, 2])
+    col_input, col_display = st.columns([1, 2])
     
-    with col1:
+    with col_input:
         st.markdown("### 📝 Company Parameters")
-        
         with st.form("simulator_form"):
             sim_name = st.text_input("Company Name", "Future Tech Inc.")
-            sim_rev = st.number_input("Annual Revenue (USD)", min_value=0.0, value=5000000.0, step=100000.0)
-            sim_emp = st.number_input("Total Employees", min_value=1.0, value=25.0, step=1.0)
+            sim_rev = st.number_input("Annual Revenue (USD)", min_value=0.0, value=5000000.0)
+            sim_emp = st.number_input("Total Employees", min_value=1.0, value=25.0)
             
-            # Dropdowns from existing data
             industries = sorted(results_df['SIC Description'].dropna().unique().tolist())
-            sim_ind = st.selectbox("Industry", industries, index=industries.index('Business Services, Not Elsewhere Classified') if 'Business Services, Not Elsewhere Classified' in industries else 0)
+            sim_ind = st.selectbox("Industry", industries)
             
             regions = sorted(results_df['Region'].dropna().unique().tolist())
-            sim_region = st.selectbox("Region", regions, index=0)
+            sim_region = st.selectbox("Region", regions)
             
             entity_types = ['Headquarters', 'Single Location', 'Subsidiary', 'Branch'] 
-            sim_entity = st.selectbox("Entity Type", entity_types, index=0)
+            sim_entity = st.selectbox("Entity Type", entity_types)
             
             submitted = st.form_submit_button("🚀 Analyze Strategy")
-            
-    with col2:
+
+        if st.session_state.sim_data_ready:
+            st.write("") # 留点间距
+            if st.button("🗑️ Reset Simulator", use_container_width=True):
+                st.session_state.sim_data_ready = False
+                st.session_state.sim_prediction = None
+                st.session_state.sim_battle_report = None
+                st.rerun()
+
+        # --- 2. 处理提交逻辑 ---
         if submitted:
             if evaluator and evaluator.loaded:
-                # Construct input dict
-                sim_data = {
-                    "Name": sim_name,
-                    "Revenue (USD)": sim_rev,
-                    "Employees Total": sim_emp,
-                    "SIC Description": sim_ind,
-                    "Region": sim_region,
-                    "Entity Type": sim_entity,
-                    # Optional/Implicit
-                    "Parent Company": "Simulated Parent" if sim_entity == "Subsidiary" else None
-                }
-                
-                with st.spinner("Running Inference Engine..."):
-                    result = evaluator.predict(sim_data)
+                with st.spinner("Inference Engine running..."):
+                    # 构建输入
+                    input_dict = {
+                        "Name": sim_name, "Revenue (USD)": sim_rev,
+                        "Employees Total": sim_emp, "SIC Description": sim_ind,
+                        "Region": sim_region, "Entity Type": sim_entity
+                    }
+                    # 执行推理并存入状态
+                    st.session_state.sim_prediction = evaluator.predict(input_dict)
+                    st.session_state.sim_data_ready = True
                     
-                    # Store Result in Session State (Optional, but good for re-renders)
-                    
-                    st.markdown("### 🎯 Strategic Analysis")
-                    
-                    # 1. Top Cards
-                    c1, c2, c3 = st.columns(3)
-                    with c1:
-                        st.metric("Predicted Cluster", result['Cluster'])
-                    with c2:
-                        st.metric("Lead Score", f"{result['Lead_Score']:.0f} ({result['Lead_Tier']})")
-                    with c3:
-                        if result['Anomaly'] == 'Anomaly':
-                             st.metric("Risk Status", "⚠️ Risk Detected", delta_color="inverse")
-                        else:
-                             st.metric("Risk Status", "✅ Normal", delta_color="normal")
-                    
-                    st.markdown("---")
-                    
-                    # 2. Battle Report (LLM)
-                    # 2. Battle Report (LLM)
+                    # 执行 LLM 并存入状态
                     if llm and llm.enabled:
-                        st.markdown("#### ⚔️ AI Battle Report")
                         try:
-                            with st.spinner("Generating AI Strategy..."):
-                                # Enhance data for LLM
-                                sim_data.update(result) # Merge inference results
-                                report = llm.generate_action_report(pd.Series(sim_data))
-                                
-                                # Check for errors
-                                if "Error" in report:
-                                    st.error(f"AI Analysis Failed: {report['Error']}")
-                                else:
-                                    r1, r2, r3, r4 = st.columns(4)
-                                    
-                                    with r1:
-                                        st.info(f"**Verdict:** {report.get('Verdict', 'N/A')}")
-                                    with r2:
-                                        st.success(f"**Action:** {report.get('Action', 'N/A')}")
-                                    with r3:
-                                        st.warning(f"**Reason:** {report.get('Reason', 'N/A')}")
-                                    with r4:
-                                        st.error(f"**Risk:** {report.get('Risk', 'N/A')}")
+                            input_dict.update(st.session_state.sim_prediction)
+                            st.session_state.sim_battle_report = llm.generate_action_report(pd.Series(input_dict))
                         except Exception as e:
-                            st.error(f"An error occurred while generating/displaying the report: {str(e)}")
-                            print(f"DEBUG: Report generation error: {e}")
-                    else:
-                        st.info("Enable LLM (GEMINI_API_KEY) for detailed Battle Report.")
-                        
+                            st.error(f"LLM Error: {e}")
+                    
+                    # 关键点：强制 Streamlit 刷新以展示 Session State 中的内容
+                    st.rerun()
             else:
-                st.error("Inference Engine is not loaded. Please ensure models/ directory exists.")
+                st.error("Inference Engine not loaded.")
+
+    # --- 3. 独立渲染显示区域 ---
+    with col_display:
+        if st.session_state.sim_data_ready:
+            res = st.session_state.sim_prediction
+            st.markdown("### 🎯 Strategic Analysis")
+            
+            # 指标展示
+            m1, m2, m3 = st.columns(3)
+            with m1:
+                st.metric("Predicted Cluster", res['Cluster'])
+            with m2:
+                st.metric("Lead Score", f"{res['Lead_Score']:.0f} ({res['Lead_Tier']})")
+            with m3:
+                status_color = "inverse" if res['Anomaly'] == 'Anomaly' else "normal"
+                st.metric("Risk Status", res['Anomaly'], delta_color=status_color)
+            
+            st.markdown("---")
+            
+            # LLM Battle Report 展示
+            if st.session_state.sim_battle_report:
+                report = st.session_state.sim_battle_report
+                st.markdown("#### ⚔️ AI Battle Report")
+                
+                r1, r2 = st.columns(2)
+                r3, r4 = st.columns(2) # 2x2 布局在移动端或窄屏更稳定
+                
+                with r1: st.info(f"**Verdict:**\n\n{report.get('Verdict', 'N/A')}")
+                with r2: st.success(f"**Action:**\n\n{report.get('Action', 'N/A')}")
+                with r3: st.warning(f"**Reason:**\n\n{report.get('Reason', 'N/A')}")
+                with r4: st.error(f"**Risk:**\n\n{report.get('Risk', 'N/A')}")
         else:
             st.info("👈 Enter company details and click 'Analyze Strategy' to see the magic.")
 

@@ -31,7 +31,7 @@ class CompanyInsightGenerator:
     Defaults to Google Gemini API.
     """
     
-    def __init__(self, api_key: str = None, model_name: str = 'gemini-3-flash-preview', fallback_model: str = 'gemini-2.5-flash', status_callback=None):
+    def __init__(self, api_key: str = None, model_name: str = 'gemini-3-flash-preview', fallback_model: str = 'gemini-2.5-flash-lite', status_callback=None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.enabled = False
         self.status_callback = status_callback
