@@ -4,6 +4,16 @@ An AI-powered company segmentation and intelligence dashboard for the Champions 
 
 ## 🎯 Project Overview
 
+> **🏆 Quick Start for Judges / Reviewers**
+>
+> **Mac/Linux**: Run this single command in your terminal:
+>
+> ```bash
+> sh run_demo.sh
+> ```
+>
+> _This script will automatically set up the environment, install dependencies, process the data, and launch the dashboard._
+
 This project analyzes B2B company data to provide actionable business intelligence through:
 
 - **Multi-Dimensional Clustering**: Segments 8,559 companies into 4 distinct market clusters using K-Means
@@ -15,34 +25,36 @@ This project analyzes B2B company data to provide actionable business intelligen
 
 ## 📊 Key Results
 
-| Metric                     | Value  |
-| -------------------------- | ------ |
-| Total Companies            | 8,559  |
-| Clusters Identified        | 4      |
-| Silhouette Score           | 0.4801 |
-| Industry Sectors Analyzed  | 70+    |
-| Priority Leads (Score ≥70) | 2,500+ |
-| High-Risk Entities         | 420+   |
+| Metric                        | Value  |
+| ----------------------------- | ------ |
+| Total Companies               | 8,559  |
+| Clusters Identified           | 5      |
+| Silhouette Score              | 0.4801 |
+| Industry Sectors Analyzed     | 70+    |
+| Priority Leads (Score ≥70)    | 3      |
+| High-Risk Entities (2+ Flags) | 156    |
+| Shell Companies Detected      | 3,063  |
+| Statistical Anomalies         | 428    |
 
 ### Dynamic Cluster Naming
 
 Clusters are no longer static "Cluster 0/1". They are now dynamically named using a Tiered System ranking Revenue and Entity Structure:
 
-- **Tier 1**: Top Revenue Segment
-- **Tier 2-3**: Mid-Market
-- **Tier 4+**: Small/Micro Segment
-- **Structure**: HQ, Subsidiary, Branch, or Independent
+- **Tier 1**: Global HQ (Billion-dollar strategic hubs)
+- **Tier 2-3**: Mid-Market Subsidiaries
+- **Tier 4**: Local HQ (Independent SMB Owners)
+- **Tier 5**: Small Branches
 
-**Example Result:** `Tier 1 HQ` vs `Tier 4 Branch`.
+**Example Result:** `Tier 1 Global HQ` vs `Tier 4 Local HQ`.
 
 ### Cluster Profiles
 
-| Cluster       | Profile                     | Characteristics                                                |
-| ------------- | --------------------------- | -------------------------------------------------------------- |
-| **Cluster 0** | Medium Subsidiaries         | Service-focused entities with balanced revenue/employee ratios |
-| **Cluster 1** | Medium High-Revenue Parents | Asset-light holding structures                                 |
-| **Cluster 2** | Small Branches              | Compliance nodes with minimal operations                       |
-| **Cluster 3** | Lean HoldCos                | Zero-employee high-revenue parent entities                     |
+| Cluster      | Profile         | Characteristics                                |
+| :----------- | :-------------- | :--------------------------------------------- |
+| **Tier 1**   | Global HQ       | Top revenue giants, strategic decision centers |
+| **Tier 2/3** | Mid-Market Subs | Operational subsidiaries of larger groups      |
+| **Tier 4**   | Local HQ        | Independent parent entities, "SMB Owners"      |
+| **Tier 5**   | Small Branch    | Local offices, minimal strategic autonomy      |
 
 ### Lead Score Distribution
 
@@ -107,7 +119,13 @@ Datathon/
 
 ### 📊 Overview
 
-Key metrics, cluster distribution pie charts, and interactive revenue vs employees scatter plots.
+A command center for high-level ecosystem metrics.
+
+- **KPIs**: Total Companies, Avg Revenue/Employees, Anomaly Count.
+- **Interactive Charts**:
+  - **Cluster Distribution**: 3D-style pie chart of market segments.
+  - **Regional Heatmap**: Bar chart of companies by region.
+  - **Revenue vs Employees**: Log-scale scatter plot to visualize efficiency and outliers.
 
 ### 💰 Lead Scoring
 
@@ -122,7 +140,7 @@ B2B lead prioritization with tier breakdown, score distribution, and top prospec
 
 - Data Quality: 15%
 
-### ⚔️ Battle Report (New)
+### ⚔️ Action Report (New)
 
 Generate instant, AI-driven sales reports for any company:
 
@@ -130,25 +148,46 @@ Generate instant, AI-driven sales reports for any company:
 - **Action**: Specific CRM next steps.
 - **Risk**: Hidden red flags analysis.
 
+### 🚀 New Company Simulator (New)
+
+Simulate a new market entrant or prospect to evaluate potential fit and sales strategy before engagement.
+
+- **Interactive Inputs**: Input Company Name, Revenue, Employees, Industry, Entity Type, IT Spend, Market Value.
+- **Real-Time Scoring**: Instantly calculates Lead Score (0-100) and Tier.
+- **Cluster Prediction**: Predicts which tier (Global HQ, Local HQ, etc.) the company belongs to.
+- **AI Action Report**: Generates a simulated "Verdict", "Action", "Reason", and "Risk" analysis.
+
 ### 🔍 Company Explorer
 
-Search and filter companies, view detailed profiles, and generate AI-powered insights.
+Search and filter the entire database with instant insights.
+
+- **Intelligent Search**: Real-time filtering by company name.
+- **Detailed Profiles**: View Revenue, Employees, Age, Market Value, IT Spend, and Domestic Ultimate status.
+- **AI Action Report**: On-demand Generation of sales strategies and risk warnings.
 
 ### 📈 Cluster Analysis
 
-Compare cluster profiles with visual charts and AI-generated business personas.
+Compare market segments to understand strategic positioning.
+
+- **Visual Comparison**: Interactive bar charts comparing Median Revenue and Employees across clusters.
+- **AI Personas**: Generate deep-dive "Cluster Personas" describing the typical characteristics and strategic needs of each segment.
 
 ### ⚠️ Risk Detection
 
-Identify high-risk entities including:
+Identify high-risk entities for due diligence.
 
-- **Shell Companies**: High revenue, zero employees
-- **Data Quality Issues**: Missing critical fields
-- **Orphan Subsidiaries**: Subsidiaries without valid parent links
+- **Metrics**:
+  - **Shell Company Risk**: High revenue (>100k) with missing/zero employees.
+  - **Statistical Anomalies**: Outliers detected by Isolation Forest.
+  - **High-Risk Entities**: Companies with multiple risk flags.
+- **AI Investigation**: "Investigate with AI" feature explains _why_ a specific company was flagged as an anomaly compared to its peers.
 
 ### ⚖️ Company Comparison
 
-Side-by-side competitive analysis with AI-powered comparisons.
+Head-to-head competitive analysis.
+
+- **Side-by-Side View**: Compare metrics (Revenue, Employees, Industry) of any two companies.
+- **AI Competitive Intel**: Generates a strategic comparison highlighting "Leader vs Challenger" dynamics.
 
 ## 🤖 AI Capabilities
 
@@ -159,7 +198,7 @@ Powered by **Google Gemini**, the dashboard provides:
 | **Cluster Personas**      | Auto-generated business personas for each market segment  |
 | **Anomaly Investigation** | Risk assessment and explanation for flagged entities      |
 | **Competitive Analysis**  | AI-powered company comparisons with strategic insights    |
-| **⚔️ Battle Reports**     | Actionable sales playbooks with Verdict, Reason, & Action |
+| **⚔️ Action Reports**     | Actionable sales playbooks with Verdict, Reason, & Action |
 
 ## 📋 Requirements
 
