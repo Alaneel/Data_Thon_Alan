@@ -70,6 +70,11 @@ class CompanyInsightGenerator:
             return response.text
         except Exception as e:
             return f"Error parsing response: {e}"
+            
+    def _escape_markdown(self, text: str) -> str:
+        """Escapes dollar signs to prevent Streamlit from interpreting them as LaTeX."""
+        if not isinstance(text, str): return text
+        return text.replace('$', '\\$')
         
     def _notify(self, message):
         """Helper to send status updates if callback exists."""
@@ -152,6 +157,7 @@ class CompanyInsightGenerator:
         - Top Region: {profile.get('Top_Region', 'N/A')}
         - Top Industry: {profile.get('Top_Industry', 'N/A')}
         - Primary Entity Type: {profile.get('Top_Entity_Type', 'N/A')}
+        - Avg Age: {profile.get('Avg_Age', 'N/A')}
         
         TASK:
         1. create a short, professional "Persona Name" for this cluster (e.g., "Asian Tech SMBs", "Global Enterprise HQs").
@@ -169,7 +175,7 @@ class CompanyInsightGenerator:
         
         try:
             response = self._generate_with_retry(prompt)
-            return self._safe_get_text(response)
+            return self._escape_markdown(self._safe_get_text(response))
         except Exception as e:
             return f"Error generating insight: {e}"
 
@@ -187,6 +193,9 @@ class CompanyInsightGenerator:
         - Revenue: ${company_row.get('Revenue_USD_Clean', 0):,.2f}
         - Employees: {company_row.get('Employees_Total_Clean', 0):,.0f}
         - Region: {company_row.get('Region', 'N/A')}
+        - Age: {company_row.get('Company_Age', 'N/A')} years
+        - IT Spend: ${company_row.get('IT_Spend_Clean', 0):,.0f}
+        - Market Value: ${company_row.get('Market_Value_Clean', 0):,.0f}
         
         CLUSTER AVERAGE ({company_row.get('Cluster_Name', 'Unknown')}):
         - Avg Revenue: ${cluster_avg.get('Revenue_USD_Clean', 0):,.2f}
@@ -202,7 +211,7 @@ class CompanyInsightGenerator:
         
         try:
             response = self._generate_with_retry(prompt)
-            return self._safe_get_text(response)
+            return self._escape_markdown(self._safe_get_text(response))
         except Exception as e:
             return f"Error explaining anomaly: {e}"
 
@@ -233,13 +242,14 @@ class CompanyInsightGenerator:
         
         try:
             response = self._generate_with_retry(prompt)
-            return self._safe_get_text(response)
+            return self._escape_markdown(self._safe_get_text(response))
         except Exception as e:
             return f"Error comparing companies: {e}"
 
     def generate_action_report(self, company_row: pd.Series) -> Dict[str, str]:
         """
-        Generates a 'Battle Report' (Verdict, Reason, Risk, Action) for a company.
+        Generates a 'Action Report' (Verdict, Reason, Risk, Action) for a company.
+        Returns a dictionary.
         Returns a dictionary.
         """
         if not self.enabled:
@@ -260,6 +270,10 @@ class CompanyInsightGenerator:
         - Revenue: ${company_row.get('Revenue_USD_Clean', 0):,.0f}
         - Employees: {company_row.get('Employees_Total_Clean', 0):,.0f}
         - Lead Score: {company_row.get('Lead_Score', 0)} ({company_row.get('Lead_Tier', 'Unknown')})
+        - Market Value: ${company_row.get('Market_Value_Clean', 0):,.0f}
+        - IT Spend: ${company_row.get('IT_Spend_Clean', 0):,.0f}
+        - Age: {company_row.get('Company_Age', 'N/A')} years
+        - Domestic Ultimate: {company_row.get('Is_Domestic_Ultimate_Clean', 0)}
         - Risk Flags: {company_row.get('Risk_Flags', 0)}
         - Details: Anomaly={company_row.get('Anomaly_Label', 'N/A')}, Shell={company_row.get('Risk_Shell', False)}
         
@@ -287,7 +301,10 @@ class CompanyInsightGenerator:
                 text = text[7:]
             if text.endswith("```"):
                 text = text[:-3]
-            return json.loads(text.strip())
+            
+            data = json.loads(text.strip())
+            # Escape values for markdown
+            return {k: self._escape_markdown(v) for k, v in data.items()}
         except Exception as e:
             print(f"❌ LLM Error: {e}")
             return {"Method": "LLM-Based", "Error": str(e)}

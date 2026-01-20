@@ -322,16 +322,17 @@ elif page == "💰 Lead Scoring":
         st.dataframe(top_leads, use_container_width=True, height=400)
         
         # Lead Score Explanation
-        with st.expander("ℹ️ How Lead Scores are Calculated"):
+        with st.expander("ℹ️ How Lead Scores are Calculated (v2 Model)"):
             st.markdown("""
             **Lead Score (0-100)** is calculated based on:
             
             | Factor | Weight | Description |
             |--------|--------|-------------|
-            | Revenue Potential | 40% | Higher revenue = higher score |
-            | Decision Power | 25% | HQ/Parent entities score higher |
-            | Productivity | 20% | Revenue per employee efficiency |
-            | Data Quality | 15% | Completeness of company data |
+            | **Revenue Scale** | 35 pts | >$100M gets max points |
+            | **Hierarchy Power** | 20 pts | **Domestic Ultimate** status gets +15 points |
+            | **Efficiency & Tech** | 20 pts | High Revenue/Emp & IT Spend |
+            | **Market Value** | 15 pts | Publicly traded/Valued bonus |
+            | **Stability (Age)** | 10 pts | "Golden Age" (3-10 years) gets max |
             """)
     else:
         st.warning("Lead Score data not available. Please run enhanced_analysis.py first.")
@@ -377,6 +378,11 @@ elif page == "🔍 Company Explorer":
                 st.markdown(f"**Industry:** {company_data['SIC Description']}")
                 st.markdown(f"**Employees:** {company_data['Employees_Total_Clean']:,.0f}")
                 st.markdown(f"**Revenue:** ${company_data['Revenue_USD_Clean']:,.0f}")
+                st.markdown(f"**Age:** {company_data.get('Company_Age', 'N/A')} years")
+                st.markdown(f"**Market Value:** ${company_data.get('Market_Value_Clean', 0):,.0f}")
+                st.markdown(f"**IT Spend:** ${company_data.get('IT_Spend_Clean', 0):,.0f}")
+                is_domestic = "Yes" if company_data.get('Is_Domestic_Ultimate_Clean', 0) == 1 else "No"
+                st.markdown(f"**Domestic Ultimate:** {is_domestic}")
             
             with col2:
                 st.markdown("#### 🏷️ Segmentation")
@@ -389,15 +395,15 @@ elif page == "🔍 Company Explorer":
                 else:
                     st.markdown("**Status:** <span class='normal-badge'>✓ Normal</span>", unsafe_allow_html=True)
             
-            # LLM Insight - Battle Report
-            if st.button("⚔️ Generate Battle Report", key="company_battle_report"):
+            # LLM Insight - Action Report
+            if st.button("⚔️ Generate Action Report", key="company_action_report"):
                 if llm and llm.enabled:
                     with st.spinner("Analyzing competitive intel..."):
                         # Get cluster average for comparison is not strictly needed for the report 
                         # but we pass the row data
                         report = llm.generate_action_report(company_data)
                         
-                        st.markdown("#### ⚔️ Battle Report")
+                        st.markdown("#### ⚔️ Action Report")
                         
                         # 4-Column Metric Layout
                         r1, r2, r3, r4 = st.columns(4)
@@ -652,14 +658,14 @@ elif page == "⚖️ Company Comparison":
 elif page == "🚀 New Company Simulator":
     st.markdown('<h1 class="main-header">🚀 New Company Simulator</h1>', unsafe_allow_html=True)
     
-    # --- 1. 初始化 Session State ---
-    # 这样可以确保即使用户切换页面回来，或者触发重绘，结果也不会丢失
+    # --- 1. Initialize Session State ---
+    # Ensure that even if the user switches pages or triggers a rerun, the results will not be lost
     if "sim_data_ready" not in st.session_state:
         st.session_state.sim_data_ready = False
     if "sim_prediction" not in st.session_state:
         st.session_state.sim_prediction = None
-    if "sim_battle_report" not in st.session_state:
-        st.session_state.sim_battle_report = None
+    if "sim_action_report" not in st.session_state:
+        st.session_state.sim_action_report = None
 
     st.markdown("""
     **Business Use Case:** Simulate a new market entrant or prospect to evaluate 
@@ -675,59 +681,70 @@ elif page == "🚀 New Company Simulator":
             sim_rev = st.number_input("Annual Revenue (USD)", min_value=0.0, value=5000000.0)
             sim_emp = st.number_input("Total Employees", min_value=1.0, value=25.0)
             
+            sim_year = st.number_input("Year Found", min_value=1800, max_value=2026, value=2015)
+            sim_market_val = st.number_input("Market Value (USD)", min_value=0.0, value=0.0)
+            sim_it_spend = st.number_input("IT Spend (USD)", min_value=0.0, value=0.0)
+            
             industries = sorted(results_df['SIC Description'].dropna().unique().tolist())
             sim_ind = st.selectbox("Industry", industries)
             
             regions = sorted(results_df['Region'].dropna().unique().tolist())
             sim_region = st.selectbox("Region", regions)
             
-            entity_types = ['Headquarters', 'Single Location', 'Subsidiary', 'Branch'] 
+            entity_types = ['Parent', 'Subsidiary', 'Branch', 'Headquarters'] 
             sim_entity = st.selectbox("Entity Type", entity_types)
+            
+            sim_domestic = st.checkbox("Is Domestic Ultimate?", value=False)
             
             submitted = st.form_submit_button("🚀 Analyze Strategy")
 
         if st.session_state.sim_data_ready:
-            st.write("") # 留点间距
+            st.write("")
             if st.button("🗑️ Reset Simulator", use_container_width=True):
                 st.session_state.sim_data_ready = False
                 st.session_state.sim_prediction = None
-                st.session_state.sim_battle_report = None
+                st.session_state.sim_action_report = None
                 st.rerun()
 
-        # --- 2. 处理提交逻辑 ---
+        # --- 2. Handle Submission ---
         if submitted:
             if evaluator and evaluator.loaded:
                 with st.spinner("Inference Engine running..."):
-                    # 构建输入
                     input_dict = {
-                        "Name": sim_name, "Revenue (USD)": sim_rev,
-                        "Employees Total": sim_emp, "SIC Description": sim_ind,
-                        "Region": sim_region, "Entity Type": sim_entity
+                        "Name": sim_name, 
+                        "Revenue (USD)": sim_rev,
+                        "Employees Total": sim_emp, 
+                        "SIC Description": sim_ind,
+                        "Region": sim_region, 
+                        "Entity Type": sim_entity,
+                        "Year Found": sim_year,                
+                        "Is Domestic Ultimate": sim_domestic,
+                        "Market Value (USD)": sim_market_val,
+                        "IT Spend": sim_it_spend
                     }
-                    # 执行推理并存入状态
+                    # Perform reasoning and store the state
                     st.session_state.sim_prediction = evaluator.predict(input_dict)
                     st.session_state.sim_data_ready = True
                     
-                    # 执行 LLM 并存入状态
+                    # Execute LLM and store the state
                     if llm and llm.enabled:
                         try:
                             input_dict.update(st.session_state.sim_prediction)
-                            st.session_state.sim_battle_report = llm.generate_action_report(pd.Series(input_dict))
+                            st.session_state.sim_action_report = llm.generate_action_report(pd.Series(input_dict))
                         except Exception as e:
                             st.error(f"LLM Error: {e}")
                     
-                    # 关键点：强制 Streamlit 刷新以展示 Session State 中的内容
                     st.rerun()
             else:
                 st.error("Inference Engine not loaded.")
 
-    # --- 3. 独立渲染显示区域 ---
+    # --- 3. Display Region ---
     with col_display:
         if st.session_state.sim_data_ready:
             res = st.session_state.sim_prediction
             st.markdown("### 🎯 Strategic Analysis")
             
-            # 指标展示
+            # Indicator Display
             m1, m2, m3 = st.columns(3)
             with m1:
                 st.metric("Predicted Cluster", res['Cluster'])
@@ -739,13 +756,13 @@ elif page == "🚀 New Company Simulator":
             
             st.markdown("---")
             
-            # LLM Battle Report 展示
-            if st.session_state.sim_battle_report:
-                report = st.session_state.sim_battle_report
-                st.markdown("#### ⚔️ AI Battle Report")
+            # LLM Action Report Showcase
+            if st.session_state.sim_action_report:
+                report = st.session_state.sim_action_report
+                st.markdown("#### ⚔️ AI Action Report")
                 
                 r1, r2 = st.columns(2)
-                r3, r4 = st.columns(2) # 2x2 布局在移动端或窄屏更稳定
+                r3, r4 = st.columns(2) # 2x2 layout is more stable on mobile devices or narrow screens
                 
                 with r1: st.info(f"**Verdict:**\n\n{report.get('Verdict', 'N/A')}")
                 with r2: st.success(f"**Action:**\n\n{report.get('Action', 'N/A')}")

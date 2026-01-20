@@ -1,17 +1,18 @@
 """
-Enhanced Company Intelligence Analysis
-SDS Datathon 2026 - Competitive Version
+Company Intelligence Analysis
+SDS Datathon 2026 - Final Production Version
 
-This script performs:
-1. Multi-dimensional clustering (Revenue, Employees, Entity Type, Industry)
-2. B2B Lead Score calculation (0-100)
-3. Industry benchmarking
-4. Risk signal detection
+Updates:
+- Integrated 'Company Age', 'Market Value', 'IT Spend', 'Domestic Ultimate'
+- Fixed Clustering K=5 (Tier 1-5 Logic)
+- Updated Entity Score Mapping (Parent=3)
+- Enhanced Lead Scoring Model (v2)
+- Full Contact Info Export
 """
 
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from sklearn.ensemble import IsolationForest
 from sklearn.impute import KNNImputer
@@ -20,421 +21,318 @@ import joblib
 import os
 import json
 import warnings
+
 warnings.filterwarnings('ignore')
 
-# Calculate project root (parent of src/)
+# Project Setup
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
 MODELS_DIR = os.path.join(PROJECT_ROOT, 'models')
 
 print("=" * 60)
-print("🚀 ENHANCED COMPANY INTELLIGENCE ANALYSIS")
-print("   SDS Datathon 2026 - Competitive Version")
+print("🚀 COMPANY INTELLIGENCE PIPELINE (FINAL VERSION)")
+print("   SDS Datathon 2026")
 print("=" * 60)
 
 # ============================================================
 # 1. DATA LOADING & CLEANING
 # ============================================================
-print("\n📂 Loading data...")
-df = pd.read_csv(os.path.join(DATA_DIR, 'champions_group_data.csv'))
-print(f"   Loaded {len(df):,} companies")
+print("\n[1/7] Loading & Cleaning Data...")
+df = pd.read_csv(os.path.join(DATA_DIR, 'champions_group_data.csv'), on_bad_lines='skip')
+print(f"   Loaded {len(df):,} rows.")
 
-# Clean numeric columns - distinguish between true zeros and missing values
-def clean_numeric(col):
-    """Convert to numeric, keeping NaN as NaN (not filling with 0)"""
-    return pd.to_numeric(df[col].astype(str).str.replace(',', '').str.strip(), errors='coerce')
+# Helpers
+def clean_numeric(col_name):
+    """Convert to numeric, keeping NaN as NaN"""
+    if col_name not in df.columns: return pd.Series(np.nan, index=df.index)
+    return pd.to_numeric(df[col_name].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce')
 
-# First, get raw cleaned values (with NaN for missing)
+def clean_boolean(val):
+    """Clean Yes/No/1/0"""
+    s = str(val).lower()
+    if s in ['yes', 'true', '1']: return 1
+    return 0
+
+# A. Basic Numeric Cleaning
 revenue_raw = clean_numeric('Revenue (USD)')
 employees_raw = clean_numeric('Employees Total')
 
-# Create missing value indicator columns (before filling)
-# Treat 0 as missing for the purpose of imputation (assuming 0 revenue/employees is unlikely for active companies)
 df['Is_Revenue_Missing'] = revenue_raw.isna() | (revenue_raw == 0)
 df['Is_Employees_Missing'] = employees_raw.isna() | (employees_raw == 0)
 
-# Prepare for KNN Imputation
-print("   Performing KNN Imputation for missing values...")
+# B. KNN Imputation (Log Transformed)
+print("   Running KNN Imputation...")
 impute_df = pd.DataFrame({
-    'Revenue': revenue_raw.replace(0, np.nan),
-    'Employees': employees_raw.replace(0, np.nan)
+    'Revenue': np.log1p(revenue_raw.replace(0, np.nan)),
+    'Employees': np.log1p(employees_raw.replace(0, np.nan))
 })
 
-# Log transform for better KNN performance on skewed data
-# Validated by user request to handle orders of magnitude
-impute_df['Revenue'] = np.log1p(impute_df['Revenue'])
-impute_df['Employees'] = np.log1p(impute_df['Employees'])
+# Add Entity for context in imputation
+entity_map_impute = {'Headquarters': 4, 'Parent': 3, 'Single Location': 3, 'Subsidiary': 2, 'Branch': 1}
+impute_df['Entity_Ord'] = df['Entity Type'].map(entity_map_impute).fillna(1)
 
-# Add Entity Type as ordinal feature to help imputation
-entity_map = {'Headquarters': 4, 'Single Location': 3, 'Subsidiary': 2, 'Branch': 1}
-impute_df['Entity_Ord'] = df['Entity Type'].map(entity_map).fillna(1)
-
-# Scale before KNN
 scaler_impute = StandardScaler()
 impute_scaled = scaler_impute.fit_transform(impute_df)
-
-# Impute (using 5 neighbors)
 knn_imputer = KNNImputer(n_neighbors=5)
-impute_filled_scaled = knn_imputer.fit_transform(impute_scaled)
+impute_filled = knn_imputer.fit_transform(impute_scaled)
+impute_final = scaler_impute.inverse_transform(impute_filled)
 
-# Inverse transform to get original scale (still log-transformed)
-impute_filled_log = scaler_impute.inverse_transform(impute_filled_scaled)
+# Restore real values
+df['Revenue_USD_Clean'] = np.expm1(impute_final[:, 0])
+df['Employees_Total_Clean'] = np.expm1(impute_final[:, 1])
 
-# Inverse transform log (expm1) to get actual values
-df['Revenue_USD_Clean'] = np.expm1(impute_filled_log[:, 0])
-df['Employees_Total_Clean'] = np.expm1(impute_filled_log[:, 1])
+# Clean other metrics
 df['Employees_Site_Clean'] = clean_numeric('Employees Single Site').fillna(0)
 df['Corporate_Family_Size'] = clean_numeric('Corporate Family Members').fillna(0)
 
-print(f"   Revenue missing/zero: {df['Is_Revenue_Missing'].sum():,} ({df['Is_Revenue_Missing'].mean()*100:.1f}%)")
-print(f"   Employees missing/zero: {df['Is_Employees_Missing'].sum():,} ({df['Is_Employees_Missing'].mean()*100:.1f}%)")
-
 # ============================================================
-# 2. FEATURE ENGINEERING
+# 2. FEATURE ENGINEERING (The "Brain")
 # ============================================================
-print("\n🔧 Engineering features...")
+print("\n[2/7] Engineering Advanced Features...")
 
-# Entity Type Score (decision-making power)
-entity_map = {
-    'Headquarters': 4,
-    'Single Location': 3,
-    'Subsidiary': 2,
-    'Branch': 1
-}
+# 1. Hierarchy Power (Domestic Ultimate)
+if 'Is Domestic Ultimate' in df.columns:
+    df['Is_Domestic_Ultimate_Clean'] = df['Is Domestic Ultimate'].apply(clean_boolean)
+else:
+    df['Is_Domestic_Ultimate_Clean'] = 0
+
+# 2. Company Age
+current_year = 2026
+df['Year_Found_Clean'] = pd.to_numeric(df['Year Found'], errors='coerce')
+df['Company_Age'] = (current_year - df['Year_Found_Clean']).clip(0, 200)
+df['Company_Age'] = df['Company_Age'].fillna(df['Company_Age'].median())
+
+# 3. Market Value
+df['Market_Value_Clean'] = clean_numeric('Market Value (USD)').fillna(0)
+
+# 4. IT Spend & Tech Maturity
+df['IT_Spend_Clean'] = clean_numeric('IT Spend').fillna(0)
+df['IT_Spend_Per_Emp'] = df['IT_Spend_Clean'] / df['Employees_Total_Clean'].replace(0, np.nan)
+df['IT_Spend_Per_Emp'] = df['IT_Spend_Per_Emp'].fillna(0)
+
+# 5. Entity Score (Updated Mapping: Parent=3)
+entity_map = {'Parent': 3, 'Subsidiary': 2, 'Branch': 1}
 df['Entity_Score'] = df['Entity Type'].map(entity_map).fillna(1)
 
-# Has Parent Company
+# 6. Structure & Efficiency
 df['Has_Parent'] = df['Parent Company'].notna().astype(int)
-
-# Industry Sector (2-digit SIC)
 df['SIC_2Digit'] = df['SIC Code'].astype(str).str[:2]
-
-# Revenue per Employee (productivity indicator)
-# Handle potential division by zero if KNN somehow left 0s (unlikely but safe) or if imputation resulted in very small numbers
 df['Revenue_Per_Employee'] = df['Revenue_USD_Clean'] / df['Employees_Total_Clean'].replace(0, np.nan)
+df['Revenue_Per_Employee'] = df['Revenue_Per_Employee'].fillna(df['Revenue_Per_Employee'].median())
 
-# Fill any remaining NaNs (e.g. from 0 employees) with median
-rpe_median = df['Revenue_Per_Employee'].median()
-df['Revenue_Per_Employee'] = df['Revenue_Per_Employee'].fillna(rpe_median)
-
-# Log-transformed features for better clustering
-# Use small offset for zero values to avoid log(0) issues
+# 7. Log Transforms
 df['Log_Revenue'] = np.log1p(df['Revenue_USD_Clean'])
 df['Log_Employees'] = np.log1p(df['Employees_Total_Clean'])
 
-# Data Completeness Score - now considers zero values as incomplete
-important_fields = ['Revenue (USD)', 'Employees Total', 'SIC Code', 'Entity Type', 'Region', 'Country']
-# A field is considered complete if it's not null AND not zero (for numeric fields)
+# 8. Data Completeness
+cols_to_check = ['Is_Revenue_Missing', 'Is_Employees_Missing', 'SIC Code', 'Entity Type', 'Region', 'Country', 'Year Found']
 df['Data_Completeness'] = (
     (~df['Is_Revenue_Missing']).astype(int) + 
     (~df['Is_Employees_Missing']).astype(int) + 
     df['SIC Code'].notna().astype(int) + 
     df['Entity Type'].notna().astype(int) + 
     df['Region'].notna().astype(int) + 
-    df['Country'].notna().astype(int)
-) / 6
+    df['Country'].notna().astype(int) +
+    df['Year Found'].notna().astype(int)
+) / 7
 
-print(f"   Created {6} new features")
+print("   Added: Age, Market Value, IT Spend, Domestic Ultimate, New Entity Score.")
 
 # ============================================================
 # 3. INDUSTRY BENCHMARKING
 # ============================================================
-print("\n📊 Calculating industry benchmarks...")
-
-# Group by industry sector
+print("\n[3/7] Calculating Benchmarks...")
 industry_stats = df.groupby('SIC_2Digit').agg({
-    'Revenue_USD_Clean': ['median', 'mean', 'std', 'count'],
-    'Employees_Total_Clean': ['median', 'mean', 'std']
+    'Revenue_USD_Clean': 'median',
+    'Employees_Total_Clean': 'median'
 }).reset_index()
-
-industry_stats.columns = ['SIC_2Digit', 'Ind_Revenue_Median', 'Ind_Revenue_Mean', 'Ind_Revenue_Std', 'Ind_Count',
-                          'Ind_Employees_Median', 'Ind_Employees_Mean', 'Ind_Employees_Std']
+industry_stats.columns = ['SIC_2Digit', 'Ind_Rev_Med', 'Ind_Emp_Med']
 
 df = df.merge(industry_stats, on='SIC_2Digit', how='left')
 
-# Calculate percentiles within industry
-def industry_percentile(row, col):
-    if pd.isna(row['Ind_Revenue_Median']):
-        return 50  # Default to median if no industry data
-    industry_data = df[df['SIC_2Digit'] == row['SIC_2Digit']][col]
-    if len(industry_data) == 0:
-        return 50
-    return (industry_data < row[col]).sum() / len(industry_data) * 100
-
-# Simplified: Compare to industry median
 df['Revenue_vs_Industry'] = np.where(
-    df['Ind_Revenue_Median'] > 0,
-    (df['Revenue_USD_Clean'] / df['Ind_Revenue_Median'] - 1) * 100,
-    0
+    df['Ind_Rev_Med'] > 0,
+    (df['Revenue_USD_Clean'] / df['Ind_Rev_Med'] - 1) * 100, 0
 ).clip(-100, 500)
 
 df['Employees_vs_Industry'] = np.where(
-    df['Ind_Employees_Median'] > 0,
-    (df['Employees_Total_Clean'] / df['Ind_Employees_Median'] - 1) * 100,
-    0
+    df['Ind_Emp_Med'] > 0,
+    (df['Employees_Total_Clean'] / df['Ind_Emp_Med'] - 1) * 100, 0
 ).clip(-100, 500)
 
-print(f"   Benchmarked against {len(industry_stats)} industry sectors")
-
 # ============================================================
-# 4. MULTI-DIMENSIONAL CLUSTERING
+# 4. CLUSTERING (Fixed k=5)
 # ============================================================
-print("\n🎯 Performing multi-dimensional clustering...")
+print("\n[4/7] Segmentation (Tier 1-5)...")
 
-# Prepare clustering features
-cluster_features = ['Log_Revenue', 'Log_Employees', 'Entity_Score', 'Has_Parent', 'Revenue_Per_Employee']
-X_cluster = df[cluster_features].copy()
+cluster_features = [
+    'Log_Revenue', 'Log_Employees', 'Entity_Score', 'Has_Parent', 
+    'Revenue_Per_Employee', 'Company_Age', 'Is_Domestic_Ultimate_Clean'
+]
+X_cluster = df[cluster_features].replace([np.inf, -np.inf], np.nan).fillna(df[cluster_features].median())
 
-# Handle infinities and NaNs
-X_cluster = X_cluster.replace([np.inf, -np.inf], np.nan)
-X_cluster = X_cluster.fillna(X_cluster.median())
-
-# Scale features
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X_cluster)
 
-# Find optimal k using silhouette
-best_k = 4
-best_score = -1
-for k in range(3, 8):
-    kmeans_temp = KMeans(n_clusters=k, random_state=42, n_init=10)
-    labels_temp = kmeans_temp.fit_predict(X_scaled)
-    score = silhouette_score(X_scaled, labels_temp)
-    if score > best_score:
-        best_score = score
-        best_k = k
-
-print(f"   Optimal clusters: {best_k} (Silhouette: {best_score:.4f})")
-
-# Final clustering
+# Force k=5 as determined in analysis
+best_k = 5
+print(f"   Applying K-Means with k={best_k}...")
 kmeans = KMeans(n_clusters=best_k, random_state=42, n_init=10)
 df['Cluster'] = kmeans.fit_predict(X_scaled)
 
-# Generate cluster names based on characteristics
-cluster_profiles = df.groupby('Cluster').agg({
-    'Revenue_USD_Clean': 'median',
-    'Employees_Total_Clean': 'median',
-    'Entity_Score': 'mean',
-    'Has_Parent': 'mean'
-}).round(2)
-
-def get_cluster_context(df_data, k):
-    """
-    Dynamically names clusters using MODE (Most Frequent) for Entity Type
-    to avoid averaging dilution.
-    """
-    # 1. Calculate Centroids & Dominant Type
-    # 使用 lambda x: x.mode()[0] 来提取众数（该组中最常见的类型）
+# Naming Logic (Parent=3)
+def get_cluster_names(df_data):
     profiles = df_data.groupby('Cluster').agg({
         'Revenue_USD_Clean': 'median',
-        'Employees_Total_Clean': 'median',
-        'Entity_Score': lambda x: x.mode().iloc[0] if not x.mode().empty else x.mean() 
+        'Entity_Score': lambda x: x.mode().iloc[0] if not x.mode().empty else x.mean()
     }).reset_index()
-    
-    # 2. Assign Tiers based on Revenue Rank (1 = Highest Revenue)
     profiles['Rank'] = profiles['Revenue_USD_Clean'].rank(ascending=False, method='min').astype(int)
     
-    # 3. Generate Dynamic Names
-    def generate_name(row):
-        # Tier Part
-        tier = f"Tier {row['Rank']}"
-        
-        # Structure Part - 现在这是众数，是整数 (4, 3, 2, 1)
+    names_map = {}
+    for _, row in profiles.iterrows():
+        tier = f"Tier {int(row['Rank'])}"
         score = row['Entity_Score']
         
-        if score >= 4:       # 主要是总部
-            structure = "HQ"
-        elif score >= 3:     # 主要是独立地点
-            structure = "Indep/Strategic" 
-        elif score >= 2:     # 主要是子公司
-            structure = "Subsidiary"
-        else:                # 主要是分支机构
-            structure = "Branch"
-            
-        return f"{tier} {structure}"
+        # New Logic: Parent(3), Sub(2), Branch(1) + SMB check
+        if row['Rank'] == 1: structure = "Global HQ"
+        elif row['Rank'] >= 4 and score >= 2.8: structure = "Local HQ"
+        elif score >= 2.8: structure = "Parent HQ"
+        elif score >= 1.8: structure = "Subsidiary"
+        else: structure = "Branch"
+        
+        names_map[row['Cluster']] = f"{tier} {structure}"
+    return names_map
 
-    profiles['Cluster_Name'] = profiles.apply(generate_name, axis=1)
-    
-    return profiles.set_index('Cluster')['Cluster_Name'].to_dict()
+cluster_map = get_cluster_names(df)
+df['Cluster_Name'] = df['Cluster'].map(cluster_map)
 
-cluster_names_map = get_cluster_context(df, best_k)
-df['Cluster_Name'] = df['Cluster'].map(cluster_names_map)
-
-print(f"   Cluster distribution (Dynamic Naming):")
-cluster_counts = df['Cluster'].value_counts()
-for cluster_id in sorted(df['Cluster'].unique()):
-    name = cluster_names_map[cluster_id]
-    count = cluster_counts[cluster_id]
-    # Get median revenue for context in print output
-    med_rev = df[df['Cluster'] == cluster_id]['Revenue_USD_Clean'].median()
-    print(f"      {name:<25} (ID {cluster_id}): {count:,} companies | Median Rev: ${med_rev:,.0f}")
-
-print(f"   Cluster distribution:")
-
+# Print Distribution
+print("   Cluster Distribution:")
+vc = df['Cluster_Name'].value_counts()
+for name, count in vc.items():
+    print(f"      {name:<25}: {count:,}")
 
 # ============================================================
-# 5. B2B LEAD SCORE CALCULATION
+# 5. LEAD SCORING (Enhanced)
 # ============================================================
-print("\n💰 Calculating B2B Lead Scores...")
+print("\n[5/7] Scoring Leads...")
 
-def calculate_lead_score(row):
-    """
-    B2B Lead Score (0-100) based on:
-    - Revenue potential (40%)
-    - Decision-making power (25%)
-    - Growth indicators (20%)
-    - Data quality (15%)
-    """
+def calculate_lead_score_v2(row):
     score = 0
+    # 1. Revenue (35)
+    rev = row['Revenue_USD_Clean']
+    if rev >= 1e8: score += 35
+    elif rev >= 1e7: score += 25
+    elif rev >= 1e6: score += 15
+    elif rev >= 1e5: score += 5
     
-    # 1. Revenue Potential (0-40 points)
-    revenue = row['Revenue_USD_Clean']
-    if revenue >= 10_000_000:
-        score += 40
-    elif revenue >= 1_000_000:
-        score += 30
-    elif revenue >= 100_000:
-        score += 20
-    elif revenue >= 10_000:
-        score += 10
-    else:
-        score += 5
+    # 2. Power (20) - Domestic Ultimate Bonus
+    if row['Is_Domestic_Ultimate_Clean'] == 1: score += 15
+    else: score += row['Entity_Score'] * 3
     
-    # 2. Decision-Making Power (0-25 points)
-    entity_score = row['Entity_Score']
-    score += entity_score * 6.25  # 4 * 6.25 = 25 max
+    # 3. Tech/Efficiency (20)
+    if row['Revenue_Per_Employee'] >= 5e5: score += 10
+    if row['IT_Spend_Per_Emp'] > 1000: score += 10
+    elif row['IT_Spend_Per_Emp'] > 0: score += 5
     
-    # 3. Growth Indicators (0-20 points)
-    # Higher revenue-per-employee = more efficient/growth potential
-    rpe = row['Revenue_Per_Employee']
-    if rpe >= 500_000:
-        score += 20
-    elif rpe >= 100_000:
-        score += 15
-    elif rpe >= 50_000:
-        score += 10
-    else:
-        score += 5
+    # 4. Market Value (15)
+    if row['Market_Value_Clean'] > 0: score += 15
     
-    # 4. Data Quality (0-15 points)
-    score += row['Data_Completeness'] * 15
+    # 5. Stability (10)
+    age = row['Company_Age']
+    if 3 <= age <= 10: score += 10
+    elif age > 10: score += 5
+    
+    # Penalty
+    if row['Data_Completeness'] < 0.5: score *= 0.8
     
     return min(100, max(0, score))
 
-df['Lead_Score'] = df.apply(calculate_lead_score, axis=1)
+df['Lead_Score'] = df.apply(calculate_lead_score_v2, axis=1)
+df['Lead_Tier'] = pd.cut(df['Lead_Score'], bins=[0, 30, 50, 75, 100], labels=['Cold', 'Warm', 'Hot', 'Priority'])
 
-# Lead Score tiers
-df['Lead_Tier'] = pd.cut(
-    df['Lead_Score'],
-    bins=[0, 30, 50, 70, 100],
-    labels=['Cold', 'Warm', 'Hot', 'Priority']
-)
-
-print(f"   Lead Score distribution:")
-print(f"      Priority (70-100): {(df['Lead_Score'] >= 70).sum():,}")
-print(f"      Hot (50-70): {((df['Lead_Score'] >= 50) & (df['Lead_Score'] < 70)).sum():,}")
-print(f"      Warm (30-50): {((df['Lead_Score'] >= 30) & (df['Lead_Score'] < 50)).sum():,}")
-print(f"      Cold (0-30): {(df['Lead_Score'] < 30).sum():,}")
+print(f"   Priority Leads: {(df['Lead_Tier']=='Priority').sum():,}")
 
 # ============================================================
-# 6. RISK SIGNAL DETECTION
+# 6. RISK DETECTION (Fixed Logic)
 # ============================================================
-print("\n⚠️ Detecting risk signals...")
+print("\n[6/7] Detecting Risks & Anomalies...")
 
-# Risk 1: Shell company risk (high revenue, zero employees)
-df['Risk_Shell'] = (df['Revenue_USD_Clean'] > 100000) & (df['Employees_Total_Clean'] == 0)
+# 1. Shell Company Risk
+# Logic: Revenue is very high (>100,000), but the original data shows the number of employees as empty or 0 (Is_Employees_Missing=True).
+df['Risk_Shell'] = (df['Revenue_USD_Clean'] > 100_000) & (df['Is_Employees_Missing'] == 1)
 
-# Risk 2: Data inconsistency (missing critical fields)
+# 2. Data Quality Risk
+# Logic: Many key fields are missing
 df['Risk_DataQuality'] = df['Data_Completeness'] < 0.5
 
-# Risk 3: Orphan subsidiary (Subsidiary type but no parent linkage)
+# 3. Orphan Subsidiary Risk
+# Logic: The type is subsidiary, but there is no parent company link.
 df['Risk_OrphanSub'] = (df['Entity Type'] == 'Subsidiary') & (df['Has_Parent'] == 0)
 
-# Isolation Forest for statistical anomalies
-iso_features = ['Log_Revenue', 'Log_Employees', 'Revenue_Per_Employee']
-X_iso = df[iso_features].replace([np.inf, -np.inf], np.nan)
-# Use median instead of 0 for missing values (0 would skew anomaly detection)
-X_iso = X_iso.fillna(X_iso.median())
+# 4. Statistical Anomalies (Isolation Forest)
+# This is an unsupervised algorithm that forces the identification of the 5% of the most "strange" data.
 iso = IsolationForest(contamination=0.05, random_state=42)
-df['Anomaly'] = iso.fit_predict(X_iso)
-df['Anomaly_Label'] = df['Anomaly'].map({1: 'Normal', -1: 'Anomaly'})
+df['Anomaly_Label'] = iso.fit_predict(X_scaled) # -1=Anomaly, 1=Normal
+df['Anomaly_Label'] = df['Anomaly_Label'].map({1: 'Normal', -1: 'Anomaly'})
+df['Anomaly_Score'] = iso.decision_function(X_scaled)
 
-# Combined risk score
-df['Risk_Flags'] = df['Risk_Shell'].astype(int) + df['Risk_DataQuality'].astype(int) + df['Risk_OrphanSub'].astype(int) + (df['Anomaly'] == -1).astype(int)
+# Combined Risk Flags
+# If any risk is triggered, the Flag will be greater than 0.
+risk_anomaly = (df['Anomaly_Label'] == 'Anomaly').astype(int)
+df['Risk_Flags'] = (df['Risk_Shell'].astype(int) + 
+                    df['Risk_DataQuality'].astype(int) + 
+                    df['Risk_OrphanSub'].astype(int) + 
+                    risk_anomaly)
 
-print(f"   Risk signals detected:")
-print(f"      Shell company risk: {df['Risk_Shell'].sum():,}")
-print(f"      Data quality risk: {df['Risk_DataQuality'].sum():,}")
-print(f"      Orphan subsidiary: {df['Risk_OrphanSub'].sum():,}")
-print(f"      Statistical anomaly: {(df['Anomaly'] == -1).sum():,}")
+print(f"   Risk Analysis:")
+print(f"      Shell Companies Detected: {df['Risk_Shell'].sum():,}")
+print(f"      Anomalies Detected: {risk_anomaly.sum():,}")
 
 # ============================================================
-# 7. SAVE MODELS & ARTIFACTS
+# 7. EXPORT & SAVE (Full Stack)
 # ============================================================
-print("\n💾 Saving models & artifacts...")
+print("\n[7/7] Saving Artifacts...")
 os.makedirs(MODELS_DIR, exist_ok=True)
 
-# 1. Preprocessing Objects
-joblib.dump(scaler_impute, os.path.join(MODELS_DIR, 'scaler_impute.joblib'))
-joblib.dump(knn_imputer, os.path.join(MODELS_DIR, 'knn_imputer.joblib'))
-print(f"   Saved imputer objects to {MODELS_DIR}/")
-
-# 2. Industry Stats
-industry_stats.to_csv(os.path.join(MODELS_DIR, 'industry_stats.csv'), index=False)
-print(f"   Saved industry stats to {MODELS_DIR}/industry_stats.csv")
-
-# 3. Global Stats (Medians, Defaults)
-global_stats = {
-    "rpe_median": float(rpe_median),
-    "cluster_names_map": {int(k): v for k, v in cluster_names_map.items()},
-    "best_k": int(best_k),
-    "entity_map": entity_map
-}
-with open(os.path.join(MODELS_DIR, 'global_stats.json'), "w") as f:
-    json.dump(global_stats, f, indent=4)
-print(f"   Saved global stats to {MODELS_DIR}/global_stats.json")
-
-# 4. Clustering Models
+# Save Models
 joblib.dump(scaler, os.path.join(MODELS_DIR, 'scaler_cluster.joblib'))
 joblib.dump(kmeans, os.path.join(MODELS_DIR, 'kmeans.joblib'))
-print(f"   Saved clustering models to {MODELS_DIR}/")
+joblib.dump(iso, os.path.join(MODELS_DIR, 'iso_forest.joblib'))
+joblib.dump(scaler_impute, os.path.join(MODELS_DIR, 'scaler_impute.joblib'))
+joblib.dump(knn_imputer, os.path.join(MODELS_DIR, 'knn_imputer.joblib'))
+print("   Models saved.")
 
-# 5. Isolation Forest
-joblib.dump(iso, os.path.join(MODELS_DIR, 'isolation_forest.joblib'))
-print(f"   Saved anomaly detection model to {MODELS_DIR}/")
-
-
-# ============================================================
-# 8. SAVE ENHANCED RESULTS
-# ============================================================
-print("\n💾 Saving enhanced results...")
-
+# Export CSV 
 output_cols = [
-    'DUNS Number ', 'Company Sites', 'Country', 'Region', 'Entity Type',
-    'SIC Code', 'SIC Description', 'Employees_Total_Clean', 'Revenue_USD_Clean',
-    'Is_Revenue_Missing', 'Is_Employees_Missing',  # New: missing value indicators
-    'Entity_Score', 'Has_Parent', 'Revenue_Per_Employee', 'Data_Completeness',
-    'Revenue_vs_Industry', 'Employees_vs_Industry',
-    'Cluster', 'Cluster_Name',
+    # Identity
+    'DUNS Number ', 'Company Sites', 'Website', 
+    'Address Line 1', 'City', 'State', 'Region', 'Country', 'Phone Number', 
+    
+    # Firmographics
+    'SIC Code', 'SIC Description', 'Year Found', 'Company_Age',
+    
+    # Hierarchy
+    'Entity Type', 'Entity_Score', 'Parent Company', 
+    'Is Domestic Ultimate', 'Is_Domestic_Ultimate_Clean',
+    
+    # Metrics
+    'Revenue (USD)', 'Revenue_USD_Clean', 
+    'Employees Total', 'Employees_Total_Clean',
+    'Market_Value_Clean', 'IT_Spend_Clean',
+    
+    # Analysis
+    'Cluster', 'Cluster_Name', 
     'Lead_Score', 'Lead_Tier',
-    'Anomaly_Label', 'Risk_Shell', 'Risk_DataQuality', 'Risk_OrphanSub', 'Risk_Flags'
+    'Revenue_vs_Industry',
+    
+    # Risk
+    'Risk_Flags', 'Risk_Shell', 'Anomaly_Label'
 ]
 
-df_output = df[[c for c in output_cols if c in df.columns]]
-df_output.to_csv(os.path.join(DATA_DIR, 'company_segmentation_results.csv'), index=False)
 
-print(f"   Saved {len(df_output):,} companies to {DATA_DIR}/company_segmentation_results.csv")
 
-# ============================================================
-# 9. SUMMARY
-# ============================================================
-print("\n" + "=" * 60)
-print("📈 ENHANCED ANALYSIS SUMMARY")
-print("=" * 60)
-print(f"   Total Companies: {len(df):,}")
-print(f"   Clusters: {best_k} (Silhouette: {best_score:.4f})")
-print(f"   Industry Sectors: {len(industry_stats)}")
-print(f"   Priority Leads: {(df['Lead_Score'] >= 70).sum():,}")
-print(f"   High-Risk Entities: {(df['Risk_Flags'] >= 2).sum():,}")
-print("=" * 60)
-print("✅ Enhanced analysis complete!")
+valid_cols = [c for c in output_cols if c in df.columns]
+df[valid_cols].to_csv(os.path.join(DATA_DIR, 'company_segmentation_results.csv'), index=False)
+
+print(f"✅ Pipeline Complete. Results saved to {DATA_DIR}/company_segmentation_results.csv")
