@@ -64,3 +64,17 @@ sds_datathon_2026_problem_statement.txt
 *.json
 !models/global_stats.json
 html/
+
+# LaTeX Auxiliary Files
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+
+# Other
+reports/drafts/
