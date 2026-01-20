@@ -65,6 +65,19 @@ sds_datathon_2026_problem_statement.txt
 !models/global_stats.json
 html/
 
+# Submission Artifacts
+SDS_Datathon_2026_Submission.zip
+submission/
+
+# Large Data & Models
+notebooks/*.csv
+models/*.joblib
+*.joblib
+*.pkl
+
+# Jupyter
+.ipynb_checkpoints/
+
 # LaTeX Auxiliary Files
 *.aux
 *.log
