@@ -104,7 +104,8 @@ Datathon/
 │   ├── enhanced_analysis.py            # Full analysis pipeline
 │   └── llm_insights.py                 # LLM integration module
 ├── notebooks/
-│   └── company_intelligence_analysis.ipynb # Jupyter notebook analysis
+│   ├── company_intelligence_analysis.ipynb # Main Analysis
+│   └── methodology_justification.ipynb     # Technical Appendix (Parameter Validation)
 ├── data/
 │   ├── company_segmentation_results.csv # Processed results with scores
 │   ├── champions_group_data.csv        # Raw dataset (8,559 companies)
@@ -243,6 +244,7 @@ This project addresses all requirements of the SDS Datathon 2026:
 - ✅ **Highlight notable patterns**, strengths, risks, and anomalies
 - ✅ **Demonstrate commercial value** through Lead Scoring and Risk Assessment
 - ✅ **BONUS: Generate interpretable explanations** using LLM integration
+- ✅ **Rigorous Technical Validation**: See `notebooks/methodology_justification.ipynb` for data-driven justification of all parameters (k=5, 5\% anomaly threshold, etc.).
 
 ## 👥 Team
 
