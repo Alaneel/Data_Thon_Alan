@@ -69,7 +69,17 @@ Clusters are no longer static "Cluster 0/1". They are now dynamically named usin
 
 ## 🚀 Quick Start
 
-### 1. Setup Environment
+### 1. Data Setup (Important!)
+
+Due to file size limits, the raw dataset is not included in this repository.
+
+1.  Locate the **Champions Group Dataset** (`champions_group_data.csv`).
+2.  Place it inside the `data/` directory:
+    ```
+    Datathon/data/champions_group_data.csv
+    ```
+
+### 2. Setup Environment
 
 ```bash
 # Navigate to project directory

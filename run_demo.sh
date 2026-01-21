@@ -9,6 +9,13 @@ echo "========================================================"
 echo "   🏢 SDS Datathon 2026 - Company Intelligence Demo"
 echo "========================================================"
 
+# 0. Data Check
+if [ ! -f "data/champions_group_data.csv" ]; then
+    echo "\n❌ ERROR: Raw Dataset Not Found!"
+    echo "   Please place 'champions_group_data.csv' in the 'data/' folder."
+    echo "   Example: Datathon/data/champions_group_data.csv"
+    exit 1
+fi
 # 1. Environment Setup
 if [ ! -d "datathon_env" ]; then
     echo "\n📦 Creating Python virtual environment..."
