@@ -44,12 +44,21 @@ fi
 # 4. Run Analysis Pipeline (Optional but recommended)
 echo "\n🔄 Checking for processed data..."
 if [ ! -f "data/company_segmentation_results.csv" ]; then
-    echo "   Data not found. Running Analysis Pipeline (takes ~10s)..."
+    echo "   Data not found. Running Analysis Pipeline (takes ~20s)..."
     python3 src/enhanced_analysis.py
+    
+    echo "   Running Technical Validation (Bootstraps, ML Models)..."
+    python3 scripts/advanced_analytics.py
+    python3 scripts/validation_analysis.py
+    python3 scripts/hypothesis_testing.py
 else
-    read -p "   Process data again? [y/N]: " run_analysis
+    read -p "   Process data and run validation again? [y/N]: " run_analysis
     if [[ "$run_analysis" =~ ^[Yy]$ ]]; then
         python3 src/enhanced_analysis.py
+        echo "   Running Technical Validation..."
+        python3 scripts/advanced_analytics.py
+        python3 scripts/validation_analysis.py
+        python3 scripts/hypothesis_testing.py
     else
         echo "   Skipping analysis. Using existing data."
     fi

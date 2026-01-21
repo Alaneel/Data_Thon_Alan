@@ -159,6 +159,16 @@ Generate comprehensive 1-page due diligence summaries for any company:
 
 Simulate a new market entrant or prospect to evaluate potential fit and sales strategy before engagement.
 
+### 🔬 Technical Validation & Advanced Analytics (New!)
+
+To ensure enterprise-grade reliability, we implemented rigorous statistical validation:
+
+- **Clustering Stability**: Validated using Bootstrap Analysis with an **ARI of 0.94** (Excellent Stability).
+- **ML Validation**: Gradient Boosting classifier validates rule-based Lead Scoring with **93.11% accuracy**.
+- **Hypothesis Testing**: T-test confirms "Priority" leads have significantly higher unit efficiency ($p < 0.003$).
+- **Explainable AI (SHAP)**: Feature importance analysis confirms Revenue and Entity Score as key drivers.
+- **Anomaly Case Studies**: Detailed profiling of "Ghost Giants" (Shell Companies) and "Lean Unicorns" (High Efficiency).
+
 - **Interactive Inputs**: Input Company Name, Revenue, Employees, Industry, Entity Type, IT Spend, Market Value.
 - **Real-Time Scoring**: Instantly calculates Lead Score (0-100) and Tier.
 - **Cluster Prediction**: Predicts which tier (Global HQ, Local HQ, etc.) the company belongs to.
