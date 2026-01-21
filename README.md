@@ -25,23 +25,24 @@ This project analyzes B2B company data to provide actionable business intelligen
 
 ## 📊 Key Results
 
-| Metric                        | Value  |
-| ----------------------------- | ------ |
-| Total Companies               | 8,559  |
-| Clusters Identified           | 5      |
-| Silhouette Score              | 0.4801 |
-| Industry Sectors Analyzed     | 70+    |
-| Priority Leads (Score ≥70)    | 3      |
-| High-Risk Entities (2+ Flags) | 156    |
-| Shell Companies Detected      | 3,063  |
-| Statistical Anomalies         | 428    |
+| Metric                        | Value |
+| ----------------------------- | ----- |
+| Total Companies               | 8,559 |
+| Clusters Identified           | 5     |
+| Silhouette Score              | 0.34  |
+| Industry Sectors Analyzed     | 70+   |
+| Priority Leads (Score ≥70)    | 3     |
+| High-Risk Entities (2+ Flags) | 156   |
+| Shell Companies Detected      | 3,063 |
+| Statistical Anomalies         | 428   |
 
 ### Dynamic Cluster Naming
 
-Clusters are no longer static "Cluster 0/1". They are now dynamically named using a Tiered System ranking Revenue and Entity Structure:
+Clusters are no longer static "Cluster 0/1". They are now dynamically named using a Tiered System ranking Revenue and Entity Structure. The 5 clusters map to 5 business tiers (Tiers 2 and 3 are often grouped for simplicity):
 
 - **Tier 1**: Global HQ (Billion-dollar strategic hubs)
-- **Tier 2-3**: Mid-Market Subsidiaries
+- **Tier 2**: Large Subsidiaries
+- **Tier 3**: Mid-Market Subsidiaries
 - **Tier 4**: Local HQ (Independent SMB Owners)
 - **Tier 5**: Small Branches
 
@@ -49,12 +50,13 @@ Clusters are no longer static "Cluster 0/1". They are now dynamically named usin
 
 ### Cluster Profiles
 
-| Cluster      | Profile         | Characteristics                                |
-| :----------- | :-------------- | :--------------------------------------------- |
-| **Tier 1**   | Global HQ       | Top revenue giants, strategic decision centers |
-| **Tier 2/3** | Mid-Market Subs | Operational subsidiaries of larger groups      |
-| **Tier 4**   | Local HQ        | Independent parent entities, "SMB Owners"      |
-| **Tier 5**   | Small Branch    | Local offices, minimal strategic autonomy      |
+| Cluster    | Profile          | Characteristics                                |
+| :--------- | :--------------- | :--------------------------------------------- |
+| **Tier 1** | Global HQ        | Top revenue giants, strategic decision centers |
+| **Tier 2** | Large Subsidiary | Major operational arms of global entities      |
+| **Tier 3** | Mid-Market Subs  | Growing subsidiaries of larger groups          |
+| **Tier 4** | Local HQ         | Independent parent entities, "SMB Owners"      |
+| **Tier 5** | Small Branch     | Local offices, minimal strategic autonomy      |
 
 ### Lead Score Distribution
 
@@ -70,7 +72,7 @@ Clusters are no longer static "Cluster 0/1". They are now dynamically named usin
 ### 1. Setup Environment
 
 ```bash
-cd /Users/alanwang/Desktop/Datathon
+# Navigate to project directory
 python3 -m venv datathon_env
 source datathon_env/bin/activate
 pip install -r requirements.txt
@@ -248,7 +250,7 @@ This project addresses all requirements of the SDS Datathon 2026:
 
 ## 👥 Team
 
-SDS Datathon 2026 Submission
+Team Minions
 
 ## 📜 License
 

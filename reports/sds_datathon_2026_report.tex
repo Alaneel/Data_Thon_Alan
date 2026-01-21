@@ -69,7 +69,7 @@
 }
 
 \author{
-    Team Submission \\
+    Team Minions \\
     \textit{Singapore Data Science Datathon 2026}
 }
 
@@ -83,7 +83,7 @@
 \maketitle
 
 \begin{abstract}
-This paper presents a prototype system for deriving actionable business intelligence from company-level data through multi-dimensional clustering, lead scoring, and risk detection. We analyze 8,559 companies from the Champions Group dataset, engineering 15+ features across organizational structure, productivity, and data quality dimensions. Using K-Means clustering ($k=5$, silhouette score: 0.48) combined with Isolation Forest anomaly detection, we segment companies into interpretable market tiers and identify 3,063 potential shell companies and 428 statistical anomalies. Our B2B lead scoring model achieves meaningful stratification with 3 priority leads, 425 hot leads, and demonstrates clear dataset monetization potential. Integration with Large Language Models (LLMs) enables natural language insight generation, fulfilling the bonus requirement of interpretable explanations.
+This paper presents a prototype system for deriving actionable business intelligence from company-level data through multi-dimensional clustering, lead scoring, and risk detection. We analyze 8,559 companies from the Champions Group dataset, engineering 15+ features across organizational structure, productivity, and data quality dimensions. Using K-Means clustering ($k=5$, silhouette score: 0.34) combined with Isolation Forest anomaly detection, we segment companies into interpretable market tiers and identify 3,063 potential shell companies and 428 statistical anomalies. Our B2B lead scoring model achieves meaningful stratification with 3 priority leads, 425 hot leads, and demonstrates clear dataset monetization potential. Integration with Large Language Models (LLMs) enables natural language insight generation, fulfilling the bonus requirement of interpretable explanations.
 \end{abstract}
 
 \tableofcontents
@@ -210,6 +210,15 @@ We implement a sophisticated missing value strategy using K-Nearest Neighbors (K
     \item Inverse transform to restore original scale
 \end{enumerate}
 
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/knn_val.png}
+    \caption{KNN Imputation Validation: $k=5$ provides the optimal balance (One SE Rule).}
+    \label{fig:knn_val}
+\end{figure}
+
 \textbf{Parameter Justification}: We utilized 5-Fold Cross-Validation on the observed data subset to determine the optimal $k$. Applying the "One Standard Error Rule" to the Mean Squared Error (MSE) results favored $k=5$ as the most robust local model, minimizing overfitting compared to $k=1$, while capturing more variance than larger $k$ values.
 
 \subsubsection{Normalization Strategy}
@@ -267,6 +276,13 @@ We calculate industry-relative performance metrics:
 \textbf{Granularity Selection (SIC 2-Digit vs 4-Digit)}:
 A data density analysis revealed that using granular SIC 4-Digit codes resulted in 58\% of industry groups having $<5$ samples, rendering benchmarks statistically unstable. Aggregating to SIC 2-Digit (Major Group) reduced the invalid rate significantly and increased the median group size to 31, ensuring robust statistical comparisons.
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/sic_sparsity.png}
+    \caption{Data Sparsity Analysis: SIC 4-Digit aggregation leads to high invalid rate.}
+    \label{fig:sic_sparsity}
+\end{figure}
+
 Values are clipped to $[-100\%, +500\%]$ to handle outliers.
 
 \subsubsection{Productivity Indicators}
@@ -310,6 +326,13 @@ We apply K-Means clustering \citep{macqueen1967some} with $k=5$ clusters, determ
     \item Silhouette Score: $s = 0.34$ (Local Peak)
 \end{itemize}
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figures/clustering_metrics.png}
+    \caption{Clustering Metrics: Elbow Curve and Silhouette Score Analysis supporting $k=5$.}
+    \label{fig:clusters}
+\end{figure}
+
 \textbf{Choice of k=5}: While $k=2,3$ yielded marginally higher raw silhouette scores due to broad cluster separation, they failed to capture meaningful business tiers. $k=4$ showed a distinct performance dip ($s=0.31$). $k=5$ represents a "local stability peak" ($s=0.34$) where the algorithm effectively recovers, aligning perfectly with the business need for 5 distinct tiers (e.g., separating "Parent" from "Global Ultimate").
 
 \begin{equation}
@@ -350,6 +373,13 @@ Stability & 10 & Age 3-10 years: 10; Age $>$10: 5 \\
 
 \end{table}
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{figures/lead_score_robustness.png}
+    \caption{Sensitivity Analysis: High correlation between Baseline and Perturbed models.}
+    \label{fig:robustness}
+\end{figure}
+
 \textbf{Robustness Check}: We performed a Sensitivity Analysis by perturbing the scoring weights by $\pm 10-20\%$ (e.g., reducing Revenue impact). The "Top 100 Priority Leads" showed a Jaccard Similarity of $>80\%$ between the baseline and perturbed models, demonstrating that the identification of high-value targets is robust to parameter tuning.
 
 \subsection{Risk Detection}
@@ -370,6 +400,13 @@ We apply Isolation Forest \citep{liu2008isolation} for unsupervised anomaly dete
     \item Features: Same 7-feature set as clustering
     \item Output: Anomaly label and continuous anomaly score
 \end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/anomaly_dist.png}
+    \caption{Anomaly Score Distribution: 5\% threshold separates the "normal" bell curve from the long anomaly tail.}
+    \label{fig:anomaly}
+\end{figure}
 
 \textbf{Threshold Verification}: The 5\% contamination rate was validated by analyzing the distribution of anomaly scores. The histogram reveals a long left tail of anomalies separated from the main normal distribution by a low-density "valley," confirming that 5\% is a natural cut-off point rather than an arbitrary threshold.
 
@@ -583,7 +620,7 @@ This project successfully developed a comprehensive company intelligence system 
 \begin{itemize}[noitemsep]
     \item Processed 8,559 company records with 72 attributes
     \item Engineered 15+ derived features
-    \item Segmented companies into 5 interpretable tiers (Silhouette: 0.48)
+    \item Segmented companies into 5 interpretable tiers (Silhouette: 0.34)
     \item Implemented multi-factor lead scoring (0-100 scale)
     \item Detected 3,063 potential shell companies and 428 statistical anomalies
     \item Integrated LLM capabilities for natural language insights
